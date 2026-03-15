@@ -1,5 +1,8 @@
 mod database;
+mod models;
+mod scanner;
 
+use models::Library;
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -18,8 +21,14 @@ fn get_db_status(state: tauri::State<'_, AppState>) -> String {
     }
 }
 
+#[tauri::command]
+fn scan_library(root_path: String) -> Result<Library, String> {
+    scanner::scan_library(&root_path)
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -36,7 +45,7 @@ fn main() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_db_status])
+        .invoke_handler(tauri::generate_handler![get_db_status, scan_library])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

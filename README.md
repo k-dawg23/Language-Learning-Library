@@ -1,25 +1,48 @@
 # Language Learning Library
 
-Phase 1 scaffold for a lightweight offline desktop app using Tauri + React + TypeScript + SQLite.
+Lightweight offline desktop app built with Tauri + React + TypeScript + SQLite.
 
-## What is included in Phase 1
+## Implemented so far
 
-- Tauri app shell (Rust backend + desktop window config)
+### Phase 1
+
+- Tauri app scaffold
 - React + TypeScript frontend scaffold
-- Base two-column layout:
-  - sidebar placeholder
-  - content area placeholder
-- SQLite initialization on app startup (local DB file in app data directory)
-- README setup and run instructions
+- SQLite initialization on startup
+- Base app shell with sidebar + content area
 
-No folder scanning, lesson management, or playback logic is included yet.
+### Phase 2
+
+- Import root folder by:
+  - folder picker
+  - manual path input
+- Recursive scanning of selected root folder and all subfolders
+- Supported audio lesson detection:
+  - `mp3`, `m4a`, `wav`, `aac`, `flac`, `ogg`
+- PDF detection and categorization:
+  - root-level PDFs as shared/reference documents for the whole library
+  - folder-level PDFs as local references for that folder
+- Preserved folder hierarchy in UI
+- Safe identity model using full-path-based IDs (handles duplicate filenames in different folders)
+
+## Data models (Phase 2)
+
+- `Library`
+- `FolderNode`
+- `Lesson`
+- `PdfDocument` with `scope`:
+  - `root_shared`
+  - `folder_local`
 
 ## Project structure
 
 - `src/` - React frontend
-- `src/components/` - UI shell component(s)
+- `src/components/` - UI components
+- `src/types/` - frontend TypeScript models
 - `src-tauri/` - Rust/Tauri backend
 - `src-tauri/src/database.rs` - SQLite initialization
+- `src-tauri/src/models.rs` - shared scan models
+- `src-tauri/src/scanner.rs` - recursive filesystem scan logic
 
 ## Prerequisites
 
@@ -53,6 +76,7 @@ npm run tauri:build
 
 ## Notes
 
-- The app is designed to run fully offline.
+- App is offline-first and local-only.
 - SQLite is embedded via `rusqlite` with the `bundled` feature.
-- Future phases will add folder import, recursive scan, persistence models, playback, PDF viewing, and navigation.
+- Rust/Cargo is required to run Tauri commands.
+- Next phases add persistence of imported libraries and lesson/PDF state.
