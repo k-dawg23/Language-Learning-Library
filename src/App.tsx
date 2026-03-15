@@ -1,9 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AppShell } from "./components/AppShell";
 import { FolderTree } from "./components/FolderTree";
-import type { FolderNode, Library, Lesson, PdfDocument } from "./types/library";
+import {
+  buildFolderProgressMap,
+  findFolderNode,
+  formatTime,
+  upsertLibrary
+} from "./lib/library-utils";
+import {
+  importLibrary as importLibraryApi,
+  loadAudioDataUrl,
+  loadImportedLibraries,
+  rescanLibrary,
+  setLastOpenedLesson,
+  setLessonPlaybackPosition,
+  setLessonPlayed
+} from "./lib/tauri-api";
+import type { Library, Lesson, PdfDocument } from "./types/library";
 
 type StatusTone = "neutral" | "error";
 
@@ -20,10 +35,12 @@ export function App() {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [selectedPdfId, setSelectedPdfId] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
+  const [audioSourceMode, setAudioSourceMode] = useState<"asset" | "file" | "data">("asset");
+  const [audioDataUrl, setAudioDataUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [autoAdvance, setAutoAdvance] = useState(false);
   const [status, setStatus] = useState<StatusMessage>({
     tone: "neutral",
     message: "Loading imported libraries..."
@@ -138,8 +155,16 @@ export function App() {
       return "";
     }
 
+    if (audioSourceMode === "data") {
+      return audioDataUrl ?? "";
+    }
+
+    if (audioSourceMode === "file") {
+      return toFileUrl(selectedLesson.fullPath);
+    }
+
     return convertFileSrc(selectedLesson.fullPath);
-  }, [selectedLesson]);
+  }, [selectedLesson, audioDataUrl, audioSourceMode]);
 
   const pdfSrc = useMemo(() => {
     if (!selectedPdf) {
@@ -207,7 +232,7 @@ export function App() {
   }, [selectedLibrary, sharedPdfs, folderPdfs, selectedPdfId, pdfById]);
 
   useEffect(() => {
-    if (!selectedLesson) {
+    if (!selectedLessonId || !selectedLesson) {
       setDuration(0);
       setCurrentTime(0);
       setIsPlaying(false);
@@ -219,13 +244,15 @@ export function App() {
     setDuration(0);
     setCurrentTime(0);
     setIsPlaying(false);
+    setAudioSourceMode("asset");
+    setAudioDataUrl(null);
     pendingSeekRef.current = selectedLesson.playbackPositionSeconds;
     lastPersistedSecondRef.current = Math.floor(selectedLesson.playbackPositionSeconds ?? 0);
-  }, [selectedLesson]);
+  }, [selectedLessonId]);
 
   async function loadLibrariesOnStartup() {
     try {
-      const loaded = await invoke<Library[]>("load_imported_libraries");
+      const loaded = await loadImportedLibraries();
       setLibraries(loaded);
 
       if (loaded.length > 0) {
@@ -280,7 +307,7 @@ export function App() {
     });
 
     try {
-      const imported = await invoke<Library>("import_library", { rootPath });
+      const imported = await importLibraryApi(rootPath);
       setLibraries((previous) => upsertLibrary(previous, imported));
       focusLibrarySelection(imported);
       setStatus({
@@ -309,9 +336,7 @@ export function App() {
     });
 
     try {
-      const rescanned = await invoke<Library>("rescan_library", {
-        libraryId: selectedLibrary.id
-      });
+      const rescanned = await rescanLibrary(selectedLibrary.id);
       setLibraries((previous) => upsertLibrary(previous, rescanned));
       focusLibrarySelection(rescanned);
 
@@ -351,10 +376,7 @@ export function App() {
     }
 
     setSelectedLessonId(lessonId);
-    await invoke("set_last_opened_lesson", {
-      libraryId: selectedLibrary.id,
-      lessonId
-    }).catch(() => {
+    await setLastOpenedLesson(selectedLibrary.id, lessonId).catch(() => {
       // Non-blocking for Phase 5 browser UI.
     });
   }
@@ -389,35 +411,13 @@ export function App() {
       })
     );
 
-    await invoke("set_lesson_played", { lessonId, played }).catch(() => {
+    await setLessonPlayed(lessonId, played).catch(() => {
       // Keep UI responsive even if persistence fails.
     });
   }
 
   async function persistPlaybackPosition(lessonId: string, seconds: number | null) {
-    if (!selectedLibrary) {
-      return;
-    }
-
-    setLibraries((previous) =>
-      previous.map((library) => {
-        if (library.id !== selectedLibrary.id) {
-          return library;
-        }
-
-        return {
-          ...library,
-          lessons: library.lessons.map((lesson) =>
-            lesson.id === lessonId ? { ...lesson, playbackPositionSeconds: seconds } : lesson
-          )
-        };
-      })
-    );
-
-    await invoke("set_lesson_playback_position", {
-      lessonId,
-      playbackPositionSeconds: seconds
-    }).catch(() => {
+    await setLessonPlaybackPosition(lessonId, seconds).catch(() => {
       // Keep UI responsive even if persistence fails.
     });
   }
@@ -437,10 +437,34 @@ export function App() {
     }
 
     if (audio.paused) {
-      await audio.play().catch(() => {
+      await audio.play().catch(async () => {
+        if (audioSourceMode === "asset") {
+          setAudioSourceMode("file");
+
+          window.setTimeout(() => {
+            const retryAudio = audioRef.current;
+            if (!retryAudio) {
+              return;
+            }
+
+            void retryAudio.play().catch(() => {
+              setStatus({
+                tone: "error",
+                message: `Could not play ${selectedLesson.fileName}. Check if the file still exists and is readable.`
+              });
+            });
+          }, 50);
+          return;
+        }
+
+        if (audioSourceMode === "file") {
+          await switchToDataAudioFallback(true);
+          return;
+        }
+
         setStatus({
           tone: "error",
-          message: `Could not play ${selectedLesson.fileName}. Check if the file still exists.`
+          message: `Could not play ${selectedLesson.fileName}. Check file permissions and codec support.`
         });
       });
     } else {
@@ -465,6 +489,39 @@ export function App() {
 
   async function navigateAdjacentLesson(direction: -1 | 1) {
     await playAdjacentLesson(direction, false);
+  }
+
+  async function switchToDataAudioFallback(autoplay: boolean) {
+    if (!selectedLesson) {
+      return;
+    }
+
+    try {
+      const dataUrl = await loadAudioDataUrl(selectedLesson.fullPath);
+      setAudioDataUrl(dataUrl);
+      setAudioSourceMode("data");
+
+      if (autoplay) {
+        window.setTimeout(() => {
+          const retryAudio = audioRef.current;
+          if (!retryAudio) {
+            return;
+          }
+
+          void retryAudio.play().catch(() => {
+            setStatus({
+              tone: "error",
+              message: `Could not play ${selectedLesson.fileName}. Check file permissions and codec support.`
+            });
+          });
+        }, 50);
+      }
+    } catch {
+      setStatus({
+        tone: "error",
+        message: `Could not play ${selectedLesson.fileName}. Check file permissions and codec support.`
+      });
+    }
   }
 
   function handleLoadedMetadata() {
@@ -550,9 +607,19 @@ export function App() {
   }
 
   function handleAudioError() {
+    if (audioSourceMode === "asset" && selectedLesson) {
+      setAudioSourceMode("file");
+      return;
+    }
+
+    if (audioSourceMode === "file" && selectedLesson) {
+      void switchToDataAudioFallback(false);
+      return;
+    }
+
     setStatus({
       tone: "error",
-      message: `Audio file unavailable for ${selectedLesson?.fileName ?? "selected lesson"}. It may have moved.`
+      message: `Audio file unavailable for ${selectedLesson?.fileName ?? "selected lesson"}.`
     });
   }
 
@@ -812,71 +879,9 @@ export function App() {
   );
 }
 
-function findFolderNode(node: FolderNode, folderPath: string): FolderNode | null {
-  if (node.fullPath === folderPath) {
-    return node;
-  }
-
-  for (const child of node.children) {
-    const match = findFolderNode(child, folderPath);
-    if (match) {
-      return match;
-    }
-  }
-
-  return null;
-}
-
-function upsertLibrary(libraries: Library[], next: Library): Library[] {
-  const existingIndex = libraries.findIndex((library) => library.id === next.id);
-  if (existingIndex === -1) {
-    return [...libraries, next].sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  const updated = [...libraries];
-  updated[existingIndex] = next;
-  return updated;
-}
-
-function formatTime(totalSeconds: number): string {
-  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
-    return "00:00";
-  }
-
-  const rounded = Math.floor(totalSeconds);
-  const minutes = Math.floor(rounded / 60);
-  const seconds = rounded % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function buildFolderProgressMap(
-  node: FolderNode,
-  lessonById: Map<string, Lesson>
-): Map<string, { played: number; total: number }> {
-  const map = new Map<string, { played: number; total: number }>();
-  computeFolderProgress(node, lessonById, map);
-  return map;
-}
-
-function computeFolderProgress(
-  node: FolderNode,
-  lessonById: Map<string, Lesson>,
-  target: Map<string, { played: number; total: number }>
-): { played: number; total: number } {
-  const ownLessons = node.lessonIds
-    .map((id) => lessonById.get(id))
-    .filter((lesson): lesson is Lesson => Boolean(lesson));
-
-  let played = ownLessons.filter((lesson) => lesson.played).length;
-  let total = ownLessons.length;
-
-  for (const child of node.children) {
-    const childProgress = computeFolderProgress(child, lessonById, target);
-    played += childProgress.played;
-    total += childProgress.total;
-  }
-
-  const progress = { played, total };
-  target.set(node.fullPath, progress);
-  return progress;
+function toFileUrl(fullPath: string): string {
+  // Minimal cross-platform fallback when asset protocol cannot serve local media.
+  const normalized = fullPath.replace(/\\/g, "/");
+  const prefix = normalized.startsWith("/") ? "file://" : "file:///";
+  return `${prefix}${encodeURI(normalized)}`;
 }

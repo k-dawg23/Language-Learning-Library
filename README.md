@@ -1,158 +1,100 @@
 # Language Learning Library
 
-Lightweight offline desktop app built with Tauri + React + TypeScript + SQLite.
+Offline-first desktop app for browsing language-learning audio lessons and PDF references.
 
-## Implemented so far
+## Tech Stack
 
-### Phase 1
+- Tauri (Rust backend)
+- React + TypeScript (frontend)
+- SQLite (`rusqlite` with bundled SQLite)
 
-- Tauri app scaffold
-- React + TypeScript frontend scaffold
-- SQLite initialization on startup
-- Base app shell with sidebar + content area
+## Core Behavior
 
-### Phase 2
+- Import a root folder by picker or manual path
+- Recursively scan all subfolders
+- Supported audio lesson formats: `mp3`, `m4a`, `wav`, `aac`, `flac`, `ogg`
+- Detect PDF documents as:
+  - `root_shared` (PDFs in imported root)
+  - `folder_local` (PDFs in the current folder)
+- Preserve folder hierarchy in UI
+- Persist imported libraries and lesson/document scan results in SQLite
+- Persist played/unplayed lesson state
+- Persist optional playback position and last-opened lesson
+- Support rescan and graceful handling of missing/moved root folders
 
-- Import root folder by folder picker or manual path
-- Recursive scanning of all subfolders
-- Audio lesson detection: `mp3`, `m4a`, `wav`, `aac`, `flac`, `ogg`
-- PDF detection with scope:
-  - `root_shared` for root-level shared/reference docs
-  - `folder_local` for folder-specific reference docs
-- Preserved folder hierarchy with folder tree UI
+## Current App Capabilities (Phases 1-9)
 
-### Phase 3
-
-- SQLite persistence for:
-  - imported libraries
-  - folder hierarchy
-  - lessons
-  - PDFs
-  - shared root PDF associations
-  - lesson played/unplayed state
-  - optional lesson playback position
-  - last opened lesson per library
-- App auto-loads imported libraries at startup (no re-import required)
-- Rescan support for imported libraries
-- Graceful handling of missing or moved root folders:
-  - library remains visible
-  - marked unavailable
-  - prior scan data still available in UI
-
-### Phase 4
-
-- Lesson browser UI improvements:
-  - sidebar list of imported libraries
-  - folder tree navigation
-  - lesson list per selected folder
-  - current lesson selection panel with path context
-  - played/unplayed lesson indicators
-- Reference panel separates:
-  - shared library PDFs (root-level)
-  - current folder PDFs (folder-local)
-- Root/shared PDFs remain visible while navigating folders/lessons
-- Clean empty states for libraries/folders with no PDFs
-
-### Phase 5
-
-- Audio playback in-app for selected lessons
-- Playback controls:
+- Multi-library sidebar + folder tree navigation
+- Lesson list with played/unplayed indicators
+- Current lesson context panel
+- Audio playback:
   - play/pause
-  - seek bar
-  - current/duration time display
-  - previous/next lesson (within current folder list)
-  - optional auto-advance on lesson completion
-- Played state behavior:
-  - auto-mark as played near the end of playback or on completion
-  - manual mark/unmark toggle
-- Persistence updates:
-  - played/unplayed state saved to SQLite
-  - playback position saved periodically and on pause/end
+  - seek
+  - time display
+  - previous/next lesson
+  - optional auto-advance
+- In-app PDF viewer with quick switching between shared/folder PDFs
+- PDF fallback open action for environments where embedding is limited
+- Folder progress indicators (`played/total`) aggregated by subtree
+- Scanner resilience for real-world filesystems:
+  - skips unreadable nested entries/directories
+  - skips symlinks
+  - recursion depth guard for deeply nested directories
+- Background execution for heavy backend operations (`import`, `load`, `rescan`) to keep UI responsive
 
-### Phase 6
+## Project Structure
 
-- PDF viewing support added in-app with an embedded viewer panel
-- PDF list supports quick switching between:
-  - shared library PDFs (root-level)
-  - current folder PDFs (folder-local)
-- Currently open PDF remains available while navigating folders and switching lessons
-- Added fallback action (`Open Fallback View`) for environments where embedded PDF rendering is limited
-
-### Phase 7
-
-- Navigation polish updates:
-  - explicit `Previous Lesson` / `Next Lesson` navigation in lesson context
-  - deterministic lesson ordering (alphabetical) inside current folder view
-  - improved restore flow: last-opened lesson reselects its folder context when available
-  - folder tree progress indicators (played/total lessons aggregated by subtree)
-- PDF continuity retained while navigating lessons and folders
-
-### Phase 8
-
-- Error handling and resilience improvements:
-  - scanner now skips unreadable nested entries/directories instead of failing whole scans
-  - scanner skips symlinks to avoid recursive loop issues in complex filesystems
-  - deep nesting safeguard via maximum scan depth guard
-- Performance and responsiveness improvements:
-  - heavy backend commands (`import`, `load imported libraries`, `rescan`) now run in background blocking tasks
-  - reduces UI freezing risk during large scans/rescans and startup loads
-- Existing clean handling maintained for:
-  - audio-only folders
-  - PDF-only folders
-  - mixed root/shared + folder-local PDF structures
-  - libraries with no PDFs
-  - missing/moved files with graceful UI messaging
-
-## Data models
-
-- `Library`
-- `FolderNode`
-- `Lesson`
-- `PdfDocument`
-
-## Project structure
-
-- `src/` - React frontend
-- `src/components/` - UI components
-- `src/types/` - frontend TypeScript models
-- `src-tauri/` - Rust/Tauri backend
-- `src-tauri/src/database.rs` - SQLite setup/schema
-- `src-tauri/src/scanner.rs` - recursive filesystem scan logic
-- `src-tauri/src/repository.rs` - SQLite persistence/load/rescan/state operations
-- `src-tauri/src/models.rs` - backend response models
+- `src/`
+  - `App.tsx` - main UI composition and interaction flow
+  - `components/` - reusable UI components
+  - `lib/` - frontend utilities and typed Tauri API wrappers
+  - `types/` - frontend TypeScript models
+  - `styles.css` - app styling
+- `src-tauri/`
+  - `src/main.rs` - Tauri command handlers
+  - `src/database.rs` - SQLite schema initialization and connections
+  - `src/repository.rs` - persistence/query layer
+  - `src/scanner.rs` - recursive filesystem scanning
+  - `src/models.rs` - backend response models
 
 ## Prerequisites
 
-Install on your machine:
+Install:
 
 - Node.js 20+
 - Rust toolchain (`rustup`)
-- OS packages required by Tauri (WebKitGTK, etc. on Linux)
+- OS dependencies required by Tauri
 
-Official guides:
+Reference:
 
 - https://tauri.app/start/prerequisites/
 
-## Install dependencies
+## Setup
 
 ```bash
 npm install
 ```
 
-## Run in development
+## Development
 
 ```bash
 npm run tauri:dev
 ```
 
-## Build desktop app
+## Production Build
 
 ```bash
 npm run tauri:build
 ```
 
+## Frontend Build Check
+
+```bash
+npm run build
+```
+
 ## Notes
 
-- App is offline-first and local-only.
-- SQLite is embedded via `rusqlite` with the `bundled` feature.
-- Rust/Cargo is required to run Tauri commands.
+- App is local-only; no server required.
+- Data is stored locally in SQLite under Tauri app data directory.
+- Theme support is intentionally deferred to Phase 10.
