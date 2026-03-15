@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AppShell } from "./components/AppShell";
 import { FolderTree } from "./components/FolderTree";
@@ -434,6 +435,17 @@ export function App() {
     window.open(pdfSrc, "_blank", "noopener,noreferrer");
   }
 
+  async function quitApplication() {
+    try {
+      await getCurrentWindow().close();
+    } catch (error) {
+      setStatus({
+        tone: "error",
+        message: `Could not close app: ${String(error)}`
+      });
+    }
+  }
+
   function startPaneResize() {
     setIsResizingPanes(true);
   }
@@ -747,6 +759,9 @@ export function App() {
                 disabled={isWorking || !selectedLibrary}
               >
                 Rescan
+              </button>
+              <button type="button" className="danger-btn" onClick={() => void quitApplication()}>
+                Quit App
               </button>
             </div>
             <p className={status.tone === "error" ? "status error" : "status"}>{status.message}</p>
