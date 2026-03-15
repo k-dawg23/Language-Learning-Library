@@ -18,6 +18,7 @@ export function App() {
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
   const [selectedFolderPath, setSelectedFolderPath] = useState("");
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const [selectedPdfId, setSelectedPdfId] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -104,6 +105,14 @@ export function App() {
     return lessonById.get(selectedLessonId) ?? null;
   }, [selectedLessonId, lessonById]);
 
+  const selectedPdf = useMemo(() => {
+    if (!selectedPdfId) {
+      return null;
+    }
+
+    return pdfById.get(selectedPdfId) ?? null;
+  }, [selectedPdfId, pdfById]);
+
   const selectedLessonIndex = useMemo(() => {
     if (!selectedLessonId) {
       return -1;
@@ -123,6 +132,14 @@ export function App() {
     return convertFileSrc(selectedLesson.fullPath);
   }, [selectedLesson]);
 
+  const pdfSrc = useMemo(() => {
+    if (!selectedPdf) {
+      return "";
+    }
+
+    return `${convertFileSrc(selectedPdf.fullPath)}#view=FitH`;
+  }, [selectedPdf]);
+
   useEffect(() => {
     void loadLibrariesOnStartup();
   }, []);
@@ -131,6 +148,7 @@ export function App() {
     if (!selectedLibrary) {
       setSelectedFolderPath("");
       setSelectedLessonId(null);
+      setSelectedPdfId(null);
       return;
     }
 
@@ -157,6 +175,27 @@ export function App() {
       setSelectedLessonId(folderLessons[0].id);
     }
   }, [folderLessons, selectedLessonId]);
+
+  useEffect(() => {
+    if (!selectedLibrary) {
+      return;
+    }
+
+    const visiblePdfs = [...sharedPdfs, ...folderPdfs];
+    if (visiblePdfs.length === 0) {
+      if (selectedPdfId !== null) {
+        setSelectedPdfId(null);
+      }
+      return;
+    }
+
+    if (selectedPdfId && pdfById.has(selectedPdfId)) {
+      return;
+    }
+
+    const preferred = sharedPdfs[0] ?? visiblePdfs[0];
+    setSelectedPdfId(preferred.id);
+  }, [selectedLibrary, sharedPdfs, folderPdfs, selectedPdfId, pdfById]);
 
   useEffect(() => {
     if (!selectedLesson) {
@@ -309,6 +348,18 @@ export function App() {
     }).catch(() => {
       // Non-blocking for Phase 5 browser UI.
     });
+  }
+
+  function onSelectPdf(pdfId: string) {
+    setSelectedPdfId(pdfId);
+  }
+
+  function openPdfFallback() {
+    if (!pdfSrc) {
+      return;
+    }
+
+    window.open(pdfSrc, "_blank", "noopener,noreferrer");
   }
 
   async function persistPlayed(lessonId: string, played: boolean) {
@@ -682,11 +733,17 @@ export function App() {
                 <h3>Shared Library PDFs (Root-Level)</h3>
                 {sharedPdfs.length === 0 && <p className="empty">No root-level shared PDFs.</p>}
                 {sharedPdfs.length > 0 && (
-                  <ul className="item-list">
+                  <ul className="item-list pdf-list">
                     {sharedPdfs.map((pdf) => (
                       <li key={pdf.id}>
-                        <span>{pdf.fileName}</span>
-                        <small>{pdf.relativePath}</small>
+                        <button
+                          type="button"
+                          className={pdf.id === selectedPdfId ? "pdf-btn selected" : "pdf-btn"}
+                          onClick={() => onSelectPdf(pdf.id)}
+                        >
+                          <span>{pdf.fileName}</span>
+                          <small>{pdf.relativePath}</small>
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -695,14 +752,35 @@ export function App() {
                 <h3>Current Folder PDFs</h3>
                 {folderPdfs.length === 0 && <p className="empty">No folder-local PDFs in this folder.</p>}
                 {folderPdfs.length > 0 && (
-                  <ul className="item-list">
+                  <ul className="item-list pdf-list">
                     {folderPdfs.map((pdf) => (
                       <li key={pdf.id}>
-                        <span>{pdf.fileName}</span>
-                        <small>{pdf.relativePath}</small>
+                        <button
+                          type="button"
+                          className={pdf.id === selectedPdfId ? "pdf-btn selected" : "pdf-btn"}
+                          onClick={() => onSelectPdf(pdf.id)}
+                        >
+                          <span>{pdf.fileName}</span>
+                          <small>{pdf.relativePath}</small>
+                        </button>
                       </li>
                     ))}
                   </ul>
+                )}
+
+                <h3>PDF Viewer</h3>
+                {!selectedPdf && <p className="empty">Select a PDF to view it here.</p>}
+                {selectedPdf && (
+                  <div className="pdf-viewer">
+                    <div className="pdf-viewer-header">
+                      <p>{selectedPdf.fileName}</p>
+                      <button type="button" onClick={openPdfFallback}>
+                        Open Fallback View
+                      </button>
+                    </div>
+                    <p className="library-path">{selectedPdf.fullPath}</p>
+                    <iframe title={selectedPdf.fileName} src={pdfSrc} className="pdf-frame" />
+                  </div>
                 )}
               </section>
             </div>

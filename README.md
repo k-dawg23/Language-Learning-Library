@@ -69,6 +69,15 @@ Lightweight offline desktop app built with Tauri + React + TypeScript + SQLite.
   - played/unplayed state saved to SQLite
   - playback position saved periodically and on pause/end
 
+### Phase 6
+
+- PDF viewing support added in-app with an embedded viewer panel
+- PDF list supports quick switching between:
+  - shared library PDFs (root-level)
+  - current folder PDFs (folder-local)
+- Currently open PDF remains available while navigating folders and switching lessons
+- Added fallback action (`Open Fallback View`) for environments where embedded PDF rendering is limited
+
 ## Data models
 
 - `Library`

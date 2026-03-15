@@ -206,6 +206,32 @@ p {
   background: #e2eef8;
 }
 
+.pdf-list {
+  padding-left: 0;
+}
+
+.pdf-list li {
+  list-style: none;
+}
+
+.pdf-btn {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  text-align: left;
+  padding: 0.45rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  cursor: pointer;
+}
+
+.pdf-btn.selected {
+  border-color: #0c4a6e;
+  background: #e2eef8;
+}
+
 .played {
   color: #166534 !important;
 }
@@ -261,6 +287,39 @@ p {
   gap: 0.45rem;
   font-size: 0.9rem;
   color: #334155;
+}
+
+.pdf-viewer {
+  border: 1px solid #dbe4ef;
+  border-radius: 6px;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: #f8fafc;
+}
+
+.pdf-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pdf-viewer-header button {
+  border: 1px solid #94a3b8;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+}
+
+.pdf-frame {
+  width: 100%;
+  min-height: 420px;
+  border: 1px solid #dbe4ef;
+  border-radius: 6px;
+  background: #ffffff;
 }
 
 .empty {
