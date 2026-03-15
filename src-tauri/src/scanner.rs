@@ -65,12 +65,24 @@ fn scan_folder(
     depth: usize,
 ) -> Result<FolderNode, String> {
     let current_path = current.to_string_lossy().to_string();
-    let relative_path = relative_path(root, current);
+    let current_relative_path = relative_path(root, current);
     let name = folder_name(root, current);
 
     let mut children: Vec<FolderNode> = Vec::new();
     let mut lesson_ids: Vec<String> = Vec::new();
     let mut pdf_ids: Vec<String> = Vec::new();
+
+    if depth > MAX_SCAN_DEPTH {
+        return Ok(FolderNode {
+            id: format!("folder:{}", current_path),
+            name,
+            full_path: current_path,
+            relative_path: current_relative_path,
+            children,
+            lesson_ids,
+            pdf_ids,
+        });
+    }
 
     let read_dir = match fs::read_dir(current) {
         Ok(dir) => dir,
@@ -84,7 +96,7 @@ fn scan_folder(
                 id: format!("folder:{}", current_path),
                 name,
                 full_path: current_path,
-                relative_path,
+                relative_path: current_relative_path,
                 children,
                 lesson_ids,
                 pdf_ids,
@@ -179,7 +191,7 @@ fn scan_folder(
         id: format!("folder:{}", current_path),
         name,
         full_path: current_path,
-        relative_path,
+        relative_path: current_relative_path,
         children,
         lesson_ids,
         pdf_ids,
@@ -229,14 +241,3 @@ fn file_name(path: &Path) -> String {
         .map(|name| name.to_string())
         .unwrap_or_else(|| path.to_string_lossy().to_string())
 }
-    if depth > MAX_SCAN_DEPTH {
-        return Ok(FolderNode {
-            id: format!("folder:{}", current_path),
-            name,
-            full_path: current_path,
-            relative_path,
-            children,
-            lesson_ids,
-            pdf_ids,
-        });
-    }

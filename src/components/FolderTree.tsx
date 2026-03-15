@@ -1,9 +1,5 @@
 import type { FolderNode } from "../types/library";
-
-type FolderProgress = {
-  played: number;
-  total: number;
-};
+import type { FolderProgress } from "../lib/library-utils";
 
 type FolderTreeProps = {
   node: FolderNode;

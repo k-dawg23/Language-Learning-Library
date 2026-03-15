@@ -3,7 +3,10 @@ mod models;
 mod repository;
 mod scanner;
 
+use base64::Engine;
 use models::Library;
+use std::path::Path;
+use tauri::Manager;
 
 struct AppState {
     db_path: Option<String>,
@@ -137,6 +140,39 @@ fn set_last_opened_lesson(
     repository::set_last_opened_lesson(&conn, &library_id, lesson_id)
 }
 
+#[tauri::command]
+async fn load_audio_data_url(file_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = Path::new(&file_path);
+        if !path.exists() {
+            return Err(format!("Audio file does not exist: {}", file_path));
+        }
+
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+
+        let mime_type = match extension.as_str() {
+            "mp3" => "audio/mpeg",
+            "m4a" => "audio/mp4",
+            "wav" => "audio/wav",
+            "aac" => "audio/aac",
+            "flac" => "audio/flac",
+            "ogg" => "audio/ogg",
+            _ => "application/octet-stream",
+        };
+
+        let bytes = std::fs::read(path)
+            .map_err(|err| format!("Failed to read audio file {}: {}", file_path, err))?;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+        Ok(format!("data:{};base64,{}", mime_type, encoded))
+    })
+    .await
+    .map_err(|err| format!("Audio load task failed: {}", err))?
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -161,7 +197,8 @@ fn main() {
             rescan_library,
             set_lesson_played,
             set_lesson_playback_position,
-            set_last_opened_lesson
+            set_last_opened_lesson,
+            load_audio_data_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
