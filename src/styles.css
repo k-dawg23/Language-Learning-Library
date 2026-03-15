@@ -77,6 +77,15 @@ p {
   cursor: not-allowed;
 }
 
+.danger-btn {
+  border-color: #b91c1c !important;
+  color: #7f1d1d;
+}
+
+.danger-btn:hover {
+  background: #fee2e2;
+}
+
 .icon-btn {
   min-width: 42px;
   min-height: 38px;

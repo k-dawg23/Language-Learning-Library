@@ -1,100 +1,197 @@
 # Language Learning Library
 
-Offline-first desktop app for browsing language-learning audio lessons and PDF references.
+Offline-first desktop app for browsing language lessons (audio) and reference materials (PDF) from local folders.
+
+## Current Status
+
+Implemented through Phases 1-9, plus post-phase usability fixes:
+
+- Full offline Tauri desktop app with React + TypeScript UI
+- Recursive folder import/scan for audio + PDFs
+- SQLite persistence for libraries, lessons, PDFs, folder tree, played state, last lesson, playback position
+- Lesson browser UI with folder tree and progress indicators
+- Audio playback with icon controls (play/pause, stop, rewind, fast-forward), seek bar, time display, previous/next, auto-advance
+- In-app PDF viewing and fallback open
+- Draggable divider between lesson pane and PDF pane
+- Quit button for graceful app exit
 
 ## Tech Stack
 
-- Tauri (Rust backend)
-- React + TypeScript (frontend)
-- SQLite (`rusqlite` with bundled SQLite)
+- Frontend: React 18 + TypeScript + Vite
+- Desktop shell: Tauri 2
+- Backend: Rust
+- Database: SQLite via `rusqlite` (`bundled` feature)
+- Dialogs: `@tauri-apps/plugin-dialog`
 
-## Core Behavior
+## Supported Media
 
-- Import a root folder by picker or manual path
-- Recursively scan all subfolders
-- Supported audio lesson formats: `mp3`, `m4a`, `wav`, `aac`, `flac`, `ogg`
-- Detect PDF documents as:
-  - `root_shared` (PDFs in imported root)
-  - `folder_local` (PDFs in the current folder)
-- Preserve folder hierarchy in UI
-- Persist imported libraries and lesson/document scan results in SQLite
-- Persist played/unplayed lesson state
-- Persist optional playback position and last-opened lesson
-- Support rescan and graceful handling of missing/moved root folders
+- Audio: `mp3`, `m4a`, `wav`, `aac`, `flac`, `ogg`
+- Documents: `pdf`
 
-## Current App Capabilities (Phases 1-9)
+## PDF Behavior
 
-- Multi-library sidebar + folder tree navigation
-- Lesson list with played/unplayed indicators
-- Current lesson context panel
-- Audio playback:
-  - play/pause
-  - seek
-  - time display
-  - previous/next lesson
-  - optional auto-advance
-- In-app PDF viewer with quick switching between shared/folder PDFs
-- PDF fallback open action for environments where embedding is limited
-- Folder progress indicators (`played/total`) aggregated by subtree
-- Scanner resilience for real-world filesystems:
-  - skips unreadable nested entries/directories
-  - skips symlinks
-  - recursion depth guard for deeply nested directories
-- Background execution for heavy backend operations (`import`, `load`, `rescan`) to keep UI responsive
+- Root-level PDFs in an imported library are treated as shared documents and remain available across folder/lesson navigation.
+- PDFs in the same folder as lessons are treated as folder-local references.
+- Libraries with audio-only, PDF-only, mixed structures, or no PDFs are handled.
 
 ## Project Structure
 
-- `src/`
-  - `App.tsx` - main UI composition and interaction flow
-  - `components/` - reusable UI components
-  - `lib/` - frontend utilities and typed Tauri API wrappers
-  - `types/` - frontend TypeScript models
-  - `styles.css` - app styling
-- `src-tauri/`
-  - `src/main.rs` - Tauri command handlers
-  - `src/database.rs` - SQLite schema initialization and connections
-  - `src/repository.rs` - persistence/query layer
-  - `src/scanner.rs` - recursive filesystem scanning
-  - `src/models.rs` - backend response models
+```text
+Language-Learning-Library/
+  src/
+    App.tsx
+    main.tsx
+    styles.css
+    components/
+      AppShell.tsx
+      FolderTree.tsx
+    lib/
+      library-utils.ts
+      tauri-api.ts
+    types/
+      library.ts
+  src-tauri/
+    Cargo.toml
+    tauri.conf.json
+    capabilities/
+      default.json
+    src/
+      main.rs
+      database.rs
+      repository.rs
+      scanner.rs
+      models.rs
+```
 
 ## Prerequisites
 
-Install:
+Required on all platforms:
 
-- Node.js 20+
-- Rust toolchain (`rustup`)
-- OS dependencies required by Tauri
+- Node.js 20+ and npm
+- Rust toolchain (stable) via `rustup`
+- Tauri system dependencies (platform-specific below)
 
-Reference:
+Install Rust:
 
-- https://tauri.app/start/prerequisites/
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Verify tools:
+
+```bash
+node -v
+npm -v
+rustc -V
+cargo -V
+```
+
+## Platform Dependencies
+
+### Linux
+
+Ubuntu/Debian:
+
+```bash
+sudo apt update
+sudo apt install -y \
+  build-essential pkg-config curl wget file \
+  libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \
+  libayatana-appindicator3-dev librsvg2-dev patchelf
+```
+
+Fedora:
+
+```bash
+sudo dnf install -y \
+  gcc gcc-c++ make pkgconfig curl wget file \
+  gtk3-devel webkit2gtk4.1-devel libsoup3-devel \
+  libappindicator-gtk3-devel librsvg2-devel
+```
+
+Arch:
+
+```bash
+sudo pacman -S --needed \
+  base-devel pkgconf curl wget file \
+  gtk3 webkit2gtk-4.1 libsoup3 libappindicator-gtk3 librsvg
+```
+
+### Windows
+
+- Install Microsoft Visual Studio 2022 Build Tools with:
+  - Desktop development with C++
+  - Windows 10/11 SDK
+- Install WebView2 runtime (usually preinstalled on Windows 11; otherwise install Evergreen runtime).
+- Install Rust via `rustup-init.exe`.
+- Install Node.js 20+.
+
+Optional check in PowerShell:
+
+```powershell
+node -v
+npm -v
+rustc -V
+cargo -V
+```
+
+### macOS
+
+```bash
+xcode-select --install
+brew install node
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Notes:
+
+- WebKit is provided by macOS.
+- Ensure Xcode Command Line Tools are installed.
 
 ## Setup
+
+From project root:
 
 ```bash
 npm install
 ```
 
-## Development
+## Run In Development
 
 ```bash
 npm run tauri:dev
 ```
 
-## Production Build
+## Build
 
-```bash
-npm run tauri:build
-```
-
-## Frontend Build Check
+Frontend typecheck + build:
 
 ```bash
 npm run build
 ```
 
-## Notes
+Desktop app bundle:
 
-- App is local-only; no server required.
-- Data is stored locally in SQLite under Tauri app data directory.
-- Theme support is intentionally deferred to Phase 10.
+```bash
+npm run tauri:build
+```
+
+## Troubleshooting
+
+- `cargo metadata ... No such file or directory (os error 2)`:
+  - `cargo` is not installed or not on `PATH`; install Rust and restart shell.
+- `javascriptcoregtk-4.1.pc not found` on Linux:
+  - Install Linux WebKitGTK dependencies (`libwebkit2gtk-4.1-dev` / equivalent).
+- `Failed to load libraries: ... invoke`:
+  - Launch with `npm run tauri:dev` (not plain `npm run dev`) so Tauri backend is available.
+- Quit button permission errors:
+  - Ensure `src-tauri/capabilities/default.json` includes `core:window:allow-close`.
+
+## Data + Privacy
+
+- Local-only app, no server.
+- Library metadata and state stored in local SQLite DB inside Tauri app data directory.
+
+## Additional Documentation
+
+- See `PROJECT_HISTORY.md` for the full phase-by-phase implementation record and feature timeline.
