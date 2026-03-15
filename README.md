@@ -78,6 +78,15 @@ Lightweight offline desktop app built with Tauri + React + TypeScript + SQLite.
 - Currently open PDF remains available while navigating folders and switching lessons
 - Added fallback action (`Open Fallback View`) for environments where embedded PDF rendering is limited
 
+### Phase 7
+
+- Navigation polish updates:
+  - explicit `Previous Lesson` / `Next Lesson` navigation in lesson context
+  - deterministic lesson ordering (alphabetical) inside current folder view
+  - improved restore flow: last-opened lesson reselects its folder context when available
+  - folder tree progress indicators (played/total lessons aggregated by subtree)
+- PDF continuity retained while navigating lessons and folders
+
 ## Data models
 
 - `Library`

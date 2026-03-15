@@ -143,11 +143,21 @@ p {
   color: #0f172a;
   font-size: 0.9rem;
   text-align: left;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
 }
 
 .folder-btn.selected {
   font-weight: 700;
   color: #0c4a6e;
+}
+
+.folder-progress {
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .content-grid {
@@ -256,6 +266,12 @@ p {
   border-radius: 6px;
   padding: 0.35rem 0.55rem;
   cursor: pointer;
+}
+
+.lesson-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .audio-player {
