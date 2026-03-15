@@ -17,6 +17,7 @@ export function App() {
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
   const [selectedFolderPath, setSelectedFolderPath] = useState("");
+  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [status, setStatus] = useState<StatusMessage>({
     tone: "neutral",
@@ -86,6 +87,14 @@ export function App() {
       .filter((pdf) => pdf.scope === "folder_local");
   }, [selectedFolder, pdfById]);
 
+  const selectedLesson = useMemo(() => {
+    if (!selectedLessonId) {
+      return null;
+    }
+
+    return lessonById.get(selectedLessonId) ?? null;
+  }, [selectedLessonId, lessonById]);
+
   useEffect(() => {
     void loadLibrariesOnStartup();
   }, []);
@@ -93,6 +102,7 @@ export function App() {
   useEffect(() => {
     if (!selectedLibrary) {
       setSelectedFolderPath("");
+      setSelectedLessonId(null);
       return;
     }
 
@@ -105,6 +115,21 @@ export function App() {
     }
   }, [selectedLibrary, selectedFolderPath]);
 
+  useEffect(() => {
+    if (folderLessons.length === 0) {
+      setSelectedLessonId(null);
+      return;
+    }
+
+    const selectedStillInFolder = selectedLessonId
+      ? folderLessons.some((lesson) => lesson.id === selectedLessonId)
+      : false;
+
+    if (!selectedStillInFolder) {
+      setSelectedLessonId(folderLessons[0].id);
+    }
+  }, [folderLessons, selectedLessonId]);
+
   async function loadLibrariesOnStartup() {
     try {
       const loaded = await invoke<Library[]>("load_imported_libraries");
@@ -114,6 +139,7 @@ export function App() {
         const first = loaded[0];
         setSelectedLibraryId(first.id);
         setSelectedFolderPath(first.folderTree.fullPath);
+        setSelectedLessonId(first.lastOpenedLessonId);
         setPathInput(first.rootPath);
         setStatus({
           tone: "neutral",
@@ -168,6 +194,7 @@ export function App() {
       setLibraries((previous) => upsertLibrary(previous, imported));
       setSelectedLibraryId(imported.id);
       setSelectedFolderPath(imported.folderTree.fullPath);
+      setSelectedLessonId(imported.lastOpenedLessonId);
       setPathInput(imported.rootPath);
       setStatus({
         tone: "neutral",
@@ -201,6 +228,7 @@ export function App() {
       setLibraries((previous) => upsertLibrary(previous, rescanned));
       setSelectedLibraryId(rescanned.id);
       setSelectedFolderPath(rescanned.folderTree.fullPath);
+      setSelectedLessonId(rescanned.lastOpenedLessonId);
 
       const availabilityNote = rescanned.isAvailable ? "" : " (root folder currently missing)";
       setStatus({
@@ -220,7 +248,22 @@ export function App() {
   function onSelectLibrary(library: Library) {
     setSelectedLibraryId(library.id);
     setSelectedFolderPath(library.folderTree.fullPath);
+    setSelectedLessonId(library.lastOpenedLessonId);
     setPathInput(library.rootPath);
+  }
+
+  async function onSelectLesson(lessonId: string) {
+    if (!selectedLibrary) {
+      return;
+    }
+
+    setSelectedLessonId(lessonId);
+    await invoke("set_last_opened_lesson", {
+      libraryId: selectedLibrary.id,
+      lessonId
+    }).catch(() => {
+      // Non-blocking for Phase 4 browser UI.
+    });
   }
 
   return (
@@ -302,24 +345,50 @@ export function App() {
               <section>
                 <h3>Current Folder</h3>
                 <p className="library-path">{selectedFolder.fullPath}</p>
+                <p className="library-path">Folder context: {selectedFolder.relativePath}</p>
 
                 <h3>Lessons In Folder</h3>
                 {folderLessons.length === 0 && <p className="empty">No supported audio lessons in this folder.</p>}
                 {folderLessons.length > 0 && (
-                  <ul className="item-list">
+                  <ul className="item-list lesson-list">
                     {folderLessons.map((lesson) => (
                       <li key={lesson.id}>
-                        <span>{lesson.fileName}</span>
-                        <small>{lesson.relativePath}</small>
-                        <small>{lesson.played ? "Played" : "Unplayed"}</small>
+                        <button
+                          type="button"
+                          className={lesson.id === selectedLessonId ? "lesson-btn selected" : "lesson-btn"}
+                          onClick={() => void onSelectLesson(lesson.id)}
+                        >
+                          <span>{lesson.fileName}</span>
+                          <small>{lesson.relativePath}</small>
+                          <small className={lesson.played ? "played" : "unplayed"}>
+                            {lesson.played ? "Played" : "Unplayed"}
+                          </small>
+                        </button>
                       </li>
                     ))}
                   </ul>
                 )}
+
+                <h3>Current Lesson</h3>
+                {!selectedLesson && <p className="empty">Select a lesson to view current context.</p>}
+                {selectedLesson && (
+                  <div className="current-lesson">
+                    <p>{selectedLesson.fileName}</p>
+                    <p className="library-path">{selectedLesson.fullPath}</p>
+                    <p className={selectedLesson.played ? "status" : "status error"}>
+                      {selectedLesson.played ? "Played" : "Unplayed"}
+                    </p>
+                  </div>
+                )}
               </section>
 
               <section>
-                <h3>Shared Library PDFs (Root)</h3>
+                <h3>Reference Documents</h3>
+                <p className="library-path">
+                  Shared library PDFs stay available while you navigate folders and lessons.
+                </p>
+
+                <h3>Shared Library PDFs (Root-Level)</h3>
                 {sharedPdfs.length === 0 && <p className="empty">No root-level shared PDFs.</p>}
                 {sharedPdfs.length > 0 && (
                   <ul className="item-list">

@@ -156,6 +156,12 @@ p {
   gap: 1.4rem;
 }
 
+.content-grid section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
 .item-list {
   margin: 0;
   padding-left: 1rem;
@@ -172,6 +178,50 @@ p {
 
 .item-list small {
   color: #475569;
+}
+
+.lesson-list {
+  padding-left: 0;
+}
+
+.lesson-list li {
+  list-style: none;
+}
+
+.lesson-btn {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  text-align: left;
+  padding: 0.45rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  cursor: pointer;
+}
+
+.lesson-btn.selected {
+  border-color: #0c4a6e;
+  background: #e2eef8;
+}
+
+.played {
+  color: #166534 !important;
+}
+
+.unplayed {
+  color: #b45309 !important;
+}
+
+.current-lesson {
+  border: 1px solid #dbe4ef;
+  border-radius: 6px;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: #f8fafc;
 }
 
 .empty {

@@ -39,6 +39,20 @@ Lightweight offline desktop app built with Tauri + React + TypeScript + SQLite.
   - marked unavailable
   - prior scan data still available in UI
 
+### Phase 4
+
+- Lesson browser UI improvements:
+  - sidebar list of imported libraries
+  - folder tree navigation
+  - lesson list per selected folder
+  - current lesson selection panel with path context
+  - played/unplayed lesson indicators
+- Reference panel separates:
+  - shared library PDFs (root-level)
+  - current folder PDFs (folder-local)
+- Root/shared PDFs remain visible while navigating folders/lessons
+- Clean empty states for libraries/folders with no PDFs
+
 ## Data models
 
 - `Library`
