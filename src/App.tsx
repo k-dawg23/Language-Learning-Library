@@ -22,11 +22,35 @@ import {
 import type { Library, Lesson, PdfDocument } from "./types/library";
 
 type StatusTone = "neutral" | "error";
+type ThemeId = "pastel-blue" | "pastel-green" | "pastel-pink" | "pastel-lavender" | "pastel-peach";
 
 type StatusMessage = {
   tone: StatusTone;
   message: string;
 };
+
+const THEME_STORAGE_KEY = "language-learning-library.theme";
+const DEFAULT_THEME: ThemeId = "pastel-blue";
+const THEME_OPTIONS: Array<{ id: ThemeId; label: string }> = [
+  { id: "pastel-blue", label: "Pastel Blue" },
+  { id: "pastel-green", label: "Pastel Green" },
+  { id: "pastel-pink", label: "Pastel Pink" },
+  { id: "pastel-lavender", label: "Pastel Lavender" },
+  { id: "pastel-peach", label: "Pastel Peach" }
+];
+
+function resolveInitialTheme(): ThemeId {
+  if (typeof window === "undefined") {
+    return DEFAULT_THEME;
+  }
+
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored && THEME_OPTIONS.some((option) => option.id === stored)) {
+    return stored as ThemeId;
+  }
+
+  return DEFAULT_THEME;
+}
 
 export function App() {
   const [pathInput, setPathInput] = useState("");
@@ -44,6 +68,7 @@ export function App() {
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [leftPaneWidth, setLeftPaneWidth] = useState<number | null>(null);
   const [isResizingPanes, setIsResizingPanes] = useState(false);
+  const [theme, setTheme] = useState<ThemeId>(resolveInitialTheme);
   const [status, setStatus] = useState<StatusMessage>({
     tone: "neutral",
     message: "Loading imported libraries..."
@@ -181,6 +206,11 @@ export function App() {
   useEffect(() => {
     void loadLibrariesOnStartup();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!selectedLibrary) {
@@ -763,6 +793,16 @@ export function App() {
               <button type="button" className="danger-btn" onClick={() => void quitApplication()}>
                 Quit App
               </button>
+            </div>
+            <div className="theme-controls">
+              <label htmlFor="theme-select">Theme</label>
+              <select id="theme-select" value={theme} onChange={(event) => setTheme(event.target.value as ThemeId)}>
+                {THEME_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <p className={status.tone === "error" ? "status error" : "status"}>{status.message}</p>
           </div>

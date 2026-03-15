@@ -132,6 +132,19 @@ Language-Learning-Library/
 - Improved maintainability across scanner, repository, and UI flow.
 - Updated baseline project docs and run instructions.
 
+### Phase 10 - Theme Support
+
+- Added a lightweight theme system based on CSS variables.
+- Added five pastel themes:
+  - pastel blue
+  - pastel green
+  - pastel pink
+  - pastel lavender
+  - pastel peach
+- Added theme selector in the sidebar.
+- Persisted selected theme in local storage and restored it on app launch.
+- Kept theme support frontend-only to avoid adding backend complexity.
+
 ## Post-Phase Improvements Completed
 
 - Audio reliability improvements:
