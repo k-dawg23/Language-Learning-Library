@@ -87,6 +87,22 @@ Lightweight offline desktop app built with Tauri + React + TypeScript + SQLite.
   - folder tree progress indicators (played/total lessons aggregated by subtree)
 - PDF continuity retained while navigating lessons and folders
 
+### Phase 8
+
+- Error handling and resilience improvements:
+  - scanner now skips unreadable nested entries/directories instead of failing whole scans
+  - scanner skips symlinks to avoid recursive loop issues in complex filesystems
+  - deep nesting safeguard via maximum scan depth guard
+- Performance and responsiveness improvements:
+  - heavy backend commands (`import`, `load imported libraries`, `rescan`) now run in background blocking tasks
+  - reduces UI freezing risk during large scans/rescans and startup loads
+- Existing clean handling maintained for:
+  - audio-only folders
+  - PDF-only folders
+  - mixed root/shared + folder-local PDF structures
+  - libraries with no PDFs
+  - missing/moved files with graceful UI messaging
+
 ## Data models
 
 - `Library`
