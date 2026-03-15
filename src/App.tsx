@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AppShell } from "./components/AppShell";
 import { FolderTree } from "./components/FolderTree";
@@ -19,10 +19,19 @@ export function App() {
   const [selectedFolderPath, setSelectedFolderPath] = useState("");
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [autoAdvance, setAutoAdvance] = useState(true);
   const [status, setStatus] = useState<StatusMessage>({
     tone: "neutral",
     message: "Loading imported libraries..."
   });
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingSeekRef = useRef<number | null>(null);
+  const lastPersistedSecondRef = useRef(-1);
+  const autoplayNextRef = useRef(false);
 
   const selectedLibrary = useMemo(() => {
     if (!selectedLibraryId) {
@@ -95,6 +104,25 @@ export function App() {
     return lessonById.get(selectedLessonId) ?? null;
   }, [selectedLessonId, lessonById]);
 
+  const selectedLessonIndex = useMemo(() => {
+    if (!selectedLessonId) {
+      return -1;
+    }
+
+    return folderLessons.findIndex((lesson) => lesson.id === selectedLessonId);
+  }, [folderLessons, selectedLessonId]);
+
+  const hasPreviousLesson = selectedLessonIndex > 0;
+  const hasNextLesson = selectedLessonIndex >= 0 && selectedLessonIndex < folderLessons.length - 1;
+
+  const audioSrc = useMemo(() => {
+    if (!selectedLesson) {
+      return "";
+    }
+
+    return convertFileSrc(selectedLesson.fullPath);
+  }, [selectedLesson]);
+
   useEffect(() => {
     void loadLibrariesOnStartup();
   }, []);
@@ -129,6 +157,23 @@ export function App() {
       setSelectedLessonId(folderLessons[0].id);
     }
   }, [folderLessons, selectedLessonId]);
+
+  useEffect(() => {
+    if (!selectedLesson) {
+      setDuration(0);
+      setCurrentTime(0);
+      setIsPlaying(false);
+      pendingSeekRef.current = null;
+      lastPersistedSecondRef.current = -1;
+      return;
+    }
+
+    setDuration(0);
+    setCurrentTime(0);
+    setIsPlaying(false);
+    pendingSeekRef.current = selectedLesson.playbackPositionSeconds;
+    lastPersistedSecondRef.current = Math.floor(selectedLesson.playbackPositionSeconds ?? 0);
+  }, [selectedLesson]);
 
   async function loadLibrariesOnStartup() {
     try {
@@ -262,7 +307,188 @@ export function App() {
       libraryId: selectedLibrary.id,
       lessonId
     }).catch(() => {
-      // Non-blocking for Phase 4 browser UI.
+      // Non-blocking for Phase 5 browser UI.
+    });
+  }
+
+  async function persistPlayed(lessonId: string, played: boolean) {
+    if (!selectedLibrary) {
+      return;
+    }
+
+    setLibraries((previous) =>
+      previous.map((library) => {
+        if (library.id !== selectedLibrary.id) {
+          return library;
+        }
+
+        return {
+          ...library,
+          lessons: library.lessons.map((lesson) => (lesson.id === lessonId ? { ...lesson, played } : lesson))
+        };
+      })
+    );
+
+    await invoke("set_lesson_played", { lessonId, played }).catch(() => {
+      // Keep UI responsive even if persistence fails.
+    });
+  }
+
+  async function persistPlaybackPosition(lessonId: string, seconds: number | null) {
+    if (!selectedLibrary) {
+      return;
+    }
+
+    setLibraries((previous) =>
+      previous.map((library) => {
+        if (library.id !== selectedLibrary.id) {
+          return library;
+        }
+
+        return {
+          ...library,
+          lessons: library.lessons.map((lesson) =>
+            lesson.id === lessonId ? { ...lesson, playbackPositionSeconds: seconds } : lesson
+          )
+        };
+      })
+    );
+
+    await invoke("set_lesson_playback_position", {
+      lessonId,
+      playbackPositionSeconds: seconds
+    }).catch(() => {
+      // Keep UI responsive even if persistence fails.
+    });
+  }
+
+  async function toggleCurrentLessonPlayed() {
+    if (!selectedLesson) {
+      return;
+    }
+
+    await persistPlayed(selectedLesson.id, !selectedLesson.played);
+  }
+
+  async function togglePlayback() {
+    const audio = audioRef.current;
+    if (!audio || !selectedLesson) {
+      return;
+    }
+
+    if (audio.paused) {
+      await audio.play().catch(() => {
+        setStatus({
+          tone: "error",
+          message: `Could not play ${selectedLesson.fileName}. Check if the file still exists.`
+        });
+      });
+    } else {
+      audio.pause();
+    }
+  }
+
+  async function playAdjacentLesson(direction: -1 | 1, shouldAutoplay: boolean) {
+    if (!selectedLesson || !selectedLibrary || selectedLessonIndex < 0) {
+      return;
+    }
+
+    const nextIndex = selectedLessonIndex + direction;
+    if (nextIndex < 0 || nextIndex >= folderLessons.length) {
+      return;
+    }
+
+    await persistPlaybackPosition(selectedLesson.id, currentTime);
+    autoplayNextRef.current = shouldAutoplay;
+    await onSelectLesson(folderLessons[nextIndex].id);
+  }
+
+  function handleLoadedMetadata() {
+    const audio = audioRef.current;
+    if (!audio || !selectedLesson) {
+      return;
+    }
+
+    const mediaDuration = Number.isFinite(audio.duration) ? audio.duration : 0;
+    setDuration(mediaDuration);
+
+    const pendingSeek = pendingSeekRef.current;
+    if (pendingSeek !== null && pendingSeek > 0 && pendingSeek < mediaDuration) {
+      audio.currentTime = pendingSeek;
+      setCurrentTime(pendingSeek);
+    }
+    pendingSeekRef.current = null;
+
+    if (autoplayNextRef.current) {
+      autoplayNextRef.current = false;
+      void audio.play();
+    }
+  }
+
+  function handleTimeUpdate() {
+    const audio = audioRef.current;
+    if (!audio || !selectedLesson) {
+      return;
+    }
+
+    const nextTime = audio.currentTime;
+    const mediaDuration = Number.isFinite(audio.duration) ? audio.duration : duration;
+
+    setCurrentTime(nextTime);
+    setDuration(mediaDuration);
+
+    const roundedSecond = Math.floor(nextTime);
+    if (roundedSecond >= 0 && roundedSecond - lastPersistedSecondRef.current >= 5) {
+      lastPersistedSecondRef.current = roundedSecond;
+      void persistPlaybackPosition(selectedLesson.id, nextTime);
+    }
+
+    if (!selectedLesson.played && mediaDuration > 0 && nextTime >= Math.max(mediaDuration - 2, 0)) {
+      void persistPlayed(selectedLesson.id, true);
+    }
+  }
+
+  function handleSeekChange(nextValue: number) {
+    const audio = audioRef.current;
+    if (!audio || !selectedLesson) {
+      return;
+    }
+
+    audio.currentTime = nextValue;
+    setCurrentTime(nextValue);
+    lastPersistedSecondRef.current = Math.floor(nextValue);
+    void persistPlaybackPosition(selectedLesson.id, nextValue);
+  }
+
+  function handlePause() {
+    setIsPlaying(false);
+    if (selectedLesson) {
+      void persistPlaybackPosition(selectedLesson.id, currentTime);
+    }
+  }
+
+  function handlePlay() {
+    setIsPlaying(true);
+  }
+
+  function handleEnded() {
+    setIsPlaying(false);
+    if (!selectedLesson) {
+      return;
+    }
+
+    void persistPlayed(selectedLesson.id, true);
+    void persistPlaybackPosition(selectedLesson.id, duration);
+
+    if (autoAdvance && hasNextLesson) {
+      void playAdjacentLesson(1, true);
+    }
+  }
+
+  function handleAudioError() {
+    setStatus({
+      tone: "error",
+      message: `Audio file unavailable for ${selectedLesson?.fileName ?? "selected lesson"}. It may have moved.`
     });
   }
 
@@ -378,6 +604,71 @@ export function App() {
                     <p className={selectedLesson.played ? "status" : "status error"}>
                       {selectedLesson.played ? "Played" : "Unplayed"}
                     </p>
+                    <div className="lesson-controls">
+                      <button type="button" onClick={() => void toggleCurrentLessonPlayed()}>
+                        Mark as {selectedLesson.played ? "Unplayed" : "Played"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <h3>Audio Player</h3>
+                {!selectedLesson && <p className="empty">Choose a lesson to enable playback.</p>}
+                {selectedLesson && (
+                  <div className="audio-player">
+                    <audio
+                      key={selectedLesson.id}
+                      ref={audioRef}
+                      src={audioSrc}
+                      preload="metadata"
+                      onLoadedMetadata={handleLoadedMetadata}
+                      onTimeUpdate={handleTimeUpdate}
+                      onPause={handlePause}
+                      onPlay={handlePlay}
+                      onEnded={handleEnded}
+                      onError={handleAudioError}
+                    />
+                    <div className="button-row">
+                      <button
+                        type="button"
+                        disabled={!hasPreviousLesson}
+                        onClick={() => void playAdjacentLesson(-1, false)}
+                      >
+                        Previous
+                      </button>
+                      <button type="button" onClick={() => void togglePlayback()}>
+                        {isPlaying ? "Pause" : "Play"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!hasNextLesson}
+                        onClick={() => void playAdjacentLesson(1, false)}
+                      >
+                        Next
+                      </button>
+                    </div>
+                    <label className="seek-row" htmlFor="seek-bar">
+                      <span>{formatTime(currentTime)}</span>
+                      <input
+                        id="seek-bar"
+                        type="range"
+                        min={0}
+                        max={duration > 0 ? duration : 0}
+                        step={0.1}
+                        value={Math.min(currentTime, duration || 0)}
+                        onChange={(event) => handleSeekChange(Number(event.target.value))}
+                      />
+                      <span>{formatTime(duration)}</span>
+                    </label>
+                    <label className="checkbox-row" htmlFor="auto-advance">
+                      <input
+                        id="auto-advance"
+                        type="checkbox"
+                        checked={autoAdvance}
+                        onChange={(event) => setAutoAdvance(event.target.checked)}
+                      />
+                      Auto-advance to next lesson when playback ends
+                    </label>
                   </div>
                 )}
               </section>
@@ -446,4 +737,15 @@ function upsertLibrary(libraries: Library[], next: Library): Library[] {
   const updated = [...libraries];
   updated[existingIndex] = next;
   return updated;
+}
+
+function formatTime(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return "00:00";
+  }
+
+  const rounded = Math.floor(totalSeconds);
+  const minutes = Math.floor(rounded / 60);
+  const seconds = rounded % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
