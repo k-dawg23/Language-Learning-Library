@@ -541,6 +541,33 @@ export function App() {
     }
   }
 
+  function stopPlayback() {
+    const audio = audioRef.current;
+    if (!audio || !selectedLesson) {
+      return;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+    setCurrentTime(0);
+    lastPersistedSecondRef.current = 0;
+    void persistPlaybackPosition(selectedLesson.id, 0);
+  }
+
+  function seekBy(deltaSeconds: number) {
+    const audio = audioRef.current;
+    if (!audio || !selectedLesson) {
+      return;
+    }
+
+    const mediaDuration = Number.isFinite(audio.duration) ? audio.duration : duration;
+    const nextTime = Math.max(0, Math.min(mediaDuration || Number.MAX_SAFE_INTEGER, audio.currentTime + deltaSeconds));
+    audio.currentTime = nextTime;
+    setCurrentTime(nextTime);
+    lastPersistedSecondRef.current = Math.floor(nextTime);
+    void persistPlaybackPosition(selectedLesson.id, nextTime);
+  }
+
   async function playAdjacentLesson(direction: -1 | 1, shouldAutoplay: boolean) {
     if (!selectedLesson || !selectedLibrary || selectedLessonIndex < 0) {
       return;
@@ -845,22 +872,17 @@ export function App() {
                       onError={handleAudioError}
                     />
                     <div className="button-row">
-                      <button
-                        type="button"
-                        disabled={!hasPreviousLesson}
-                        onClick={() => void playAdjacentLesson(-1, false)}
-                      >
-                        Previous
+                      <button type="button" className="icon-btn" onClick={() => seekBy(-10)} aria-label="Rewind 10 seconds" title="Rewind 10 seconds">
+                        &#x23EA;
                       </button>
-                      <button type="button" onClick={() => void togglePlayback()}>
-                        {isPlaying ? "Pause" : "Play"}
+                      <button type="button" className="icon-btn" onClick={() => void togglePlayback()} aria-label={isPlaying ? "Pause" : "Play"} title={isPlaying ? "Pause" : "Play"}>
+                        {isPlaying ? "\u23F8" : "\u25B6"}
                       </button>
-                      <button
-                        type="button"
-                        disabled={!hasNextLesson}
-                        onClick={() => void playAdjacentLesson(1, false)}
-                      >
-                        Next
+                      <button type="button" className="icon-btn" onClick={stopPlayback} aria-label="Stop" title="Stop">
+                        &#x23F9;
+                      </button>
+                      <button type="button" className="icon-btn" onClick={() => seekBy(10)} aria-label="Fast forward 10 seconds" title="Fast forward 10 seconds">
+                        &#x23E9;
                       </button>
                     </div>
                     <label className="seek-row" htmlFor="seek-bar">
