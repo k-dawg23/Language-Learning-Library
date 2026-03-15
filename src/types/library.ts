@@ -7,6 +7,8 @@ export type Lesson = {
   relativePath: string;
   folderPath: string;
   extension: string;
+  played: boolean;
+  playbackPositionSeconds: number | null;
 };
 
 export type PdfDocument = {
@@ -32,6 +34,9 @@ export type Library = {
   id: string;
   name: string;
   rootPath: string;
+  isAvailable: boolean;
+  missingReason: string | null;
+  lastOpenedLessonId: string | null;
   folderTree: FolderNode;
   lessons: Lesson[];
   pdfDocuments: PdfDocument[];

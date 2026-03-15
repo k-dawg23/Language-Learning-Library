@@ -6,6 +6,9 @@ pub struct Library {
     pub id: String,
     pub name: String,
     pub root_path: String,
+    pub is_available: bool,
+    pub missing_reason: Option<String>,
+    pub last_opened_lesson_id: Option<String>,
     pub folder_tree: FolderNode,
     pub lessons: Vec<Lesson>,
     pub pdf_documents: Vec<PdfDocument>,
@@ -33,6 +36,8 @@ pub struct Lesson {
     pub relative_path: String,
     pub folder_path: String,
     pub extension: String,
+    pub played: bool,
+    pub playback_position_seconds: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Clone)]

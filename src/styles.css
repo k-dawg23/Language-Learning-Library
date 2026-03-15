@@ -60,6 +60,7 @@ p {
 
 .button-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -92,6 +93,38 @@ p {
 }
 
 .status.error {
+  color: #b91c1c;
+}
+
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.library-btn {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  cursor: pointer;
+}
+
+.library-btn.selected {
+  border-color: #0c4a6e;
+  background: #e2eef8;
+}
+
+.library-btn small {
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+.library-btn .missing {
   color: #b91c1c;
 }
 
