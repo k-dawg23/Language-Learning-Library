@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const AUDIO_EXTENSIONS: [&str; 6] = ["mp3", "m4a", "wav", "aac", "flac", "ogg"];
+const MAX_SCAN_DEPTH: usize = 256;
 
 pub fn scan_library(root_path: &str) -> Result<Library, String> {
     let root = normalize_root_path(root_path)?;
@@ -23,6 +24,7 @@ pub fn scan_library(root_path: &str) -> Result<Library, String> {
         &mut lessons,
         &mut pdf_documents,
         &mut shared_pdf_ids,
+        0,
     )?;
 
     Ok(Library {
@@ -60,6 +62,7 @@ fn scan_folder(
     lessons: &mut Vec<Lesson>,
     pdf_documents: &mut Vec<PdfDocument>,
     shared_pdf_ids: &mut Vec<String>,
+    depth: usize,
 ) -> Result<FolderNode, String> {
     let current_path = current.to_string_lossy().to_string();
     let relative_path = relative_path(root, current);
@@ -69,33 +72,68 @@ fn scan_folder(
     let mut lesson_ids: Vec<String> = Vec::new();
     let mut pdf_ids: Vec<String> = Vec::new();
 
-    let mut entries: Vec<fs::DirEntry> = fs::read_dir(current)
-        .map_err(|err| format!("Failed to read directory {}: {}", current_path, err))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|err| format!("Failed to read directory entry in {}: {}", current_path, err))?;
+    let read_dir = match fs::read_dir(current) {
+        Ok(dir) => dir,
+        Err(err) => {
+            if current == root {
+                return Err(format!("Failed to read directory {}: {}", current_path, err));
+            }
+
+            // Keep scanning even if one nested directory is unavailable.
+            return Ok(FolderNode {
+                id: format!("folder:{}", current_path),
+                name,
+                full_path: current_path,
+                relative_path,
+                children,
+                lesson_ids,
+                pdf_ids,
+            });
+        }
+    };
+
+    let mut entries: Vec<fs::DirEntry> = read_dir
+        .filter_map(|entry| entry.ok())
+        .collect();
 
     entries.sort_by_key(|entry| entry.file_name());
 
     for entry in entries {
-        let path = entry.path();
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(_) => continue,
+        };
 
-        if path.is_dir() {
-            let node = scan_folder(&path, root, lessons, pdf_documents, shared_pdf_ids)?;
-            children.push(node);
+        if file_type.is_symlink() {
             continue;
         }
 
-        if !path.is_file() {
+        let path = entry.path();
+
+        if file_type.is_dir() {
+            if let Ok(node) = scan_folder(
+                &path,
+                root,
+                lessons,
+                pdf_documents,
+                shared_pdf_ids,
+                depth + 1,
+            ) {
+                children.push(node);
+            }
+            continue;
+        }
+
+        if !file_type.is_file() {
             continue;
         }
 
         let extension = path
             .extension()
             .and_then(OsStr::to_str)
-            .map(str::to_lowercase)
             .unwrap_or_default();
 
-        if AUDIO_EXTENSIONS.contains(&extension.as_str()) {
+        if is_supported_audio_extension(extension) {
             let full = path.to_string_lossy().to_string();
             let lesson = Lesson {
                 id: format!("lesson:{}", full),
@@ -103,7 +141,7 @@ fn scan_folder(
                 full_path: full.clone(),
                 relative_path: relative_path(root, &path),
                 folder_path: current_path.clone(),
-                extension,
+                extension: extension.to_ascii_lowercase(),
                 played: false,
                 playback_position_seconds: None,
             };
@@ -112,7 +150,7 @@ fn scan_folder(
             continue;
         }
 
-        if extension == "pdf" {
+        if extension.eq_ignore_ascii_case("pdf") {
             let full = path.to_string_lossy().to_string();
             let is_root = current == root;
             let pdf = PdfDocument {
@@ -146,6 +184,12 @@ fn scan_folder(
         lesson_ids,
         pdf_ids,
     })
+}
+
+fn is_supported_audio_extension(extension: &str) -> bool {
+    AUDIO_EXTENSIONS
+        .iter()
+        .any(|supported| extension.eq_ignore_ascii_case(supported))
 }
 
 fn relative_path(root: &Path, target: &Path) -> String {
@@ -185,3 +229,14 @@ fn file_name(path: &Path) -> String {
         .map(|name| name.to_string())
         .unwrap_or_else(|| path.to_string_lossy().to_string())
 }
+    if depth > MAX_SCAN_DEPTH {
+        return Ok(FolderNode {
+            id: format!("folder:{}", current_path),
+            name,
+            full_path: current_path,
+            relative_path,
+            children,
+            lesson_ids,
+            pdf_ids,
+        });
+    }

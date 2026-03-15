@@ -800,7 +800,7 @@ export function App() {
                       </button>
                     </div>
                     <p className="library-path">{selectedPdf.fullPath}</p>
-                    <iframe title={selectedPdf.fileName} src={pdfSrc} className="pdf-frame" />
+                    <iframe title={selectedPdf.fileName} src={pdfSrc} className="pdf-frame" loading="lazy" />
                   </div>
                 )}
               </section>

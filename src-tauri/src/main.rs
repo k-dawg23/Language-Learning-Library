@@ -18,54 +18,72 @@ fn get_db_status(state: tauri::State<'_, AppState>) -> String {
 }
 
 #[tauri::command]
-fn import_library(state: tauri::State<'_, AppState>, root_path: String) -> Result<Library, String> {
+async fn import_library(
+    state: tauri::State<'_, AppState>,
+    root_path: String,
+) -> Result<Library, String> {
     let db_path = state
         .db_path
         .clone()
         .ok_or_else(|| "Database is not initialized".to_string())?;
 
-    let scanned = scanner::scan_library(&root_path)?;
-    let mut conn = database::open_connection(&db_path)
-        .map_err(|err| format!("Failed to open database connection: {}", err))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let scanned = scanner::scan_library(&root_path)?;
+        let mut conn = database::open_connection(&db_path)
+            .map_err(|err| format!("Failed to open database connection: {}", err))?;
 
-    repository::save_scanned_library(&mut conn, &scanned)
+        repository::save_scanned_library(&mut conn, &scanned)
+    })
+    .await
+    .map_err(|err| format!("Import task failed: {}", err))?
 }
 
 #[tauri::command]
-fn load_imported_libraries(state: tauri::State<'_, AppState>) -> Result<Vec<Library>, String> {
+async fn load_imported_libraries(state: tauri::State<'_, AppState>) -> Result<Vec<Library>, String> {
     let db_path = state
         .db_path
         .clone()
         .ok_or_else(|| "Database is not initialized".to_string())?;
 
-    let mut conn = database::open_connection(&db_path)
-        .map_err(|err| format!("Failed to open database connection: {}", err))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = database::open_connection(&db_path)
+            .map_err(|err| format!("Failed to open database connection: {}", err))?;
 
-    repository::load_all_libraries(&mut conn)
+        repository::load_all_libraries(&mut conn)
+    })
+    .await
+    .map_err(|err| format!("Load task failed: {}", err))?
 }
 
 #[tauri::command]
-fn rescan_library(state: tauri::State<'_, AppState>, library_id: String) -> Result<Library, String> {
+async fn rescan_library(
+    state: tauri::State<'_, AppState>,
+    library_id: String,
+) -> Result<Library, String> {
     let db_path = state
         .db_path
         .clone()
         .ok_or_else(|| "Database is not initialized".to_string())?;
 
-    let mut conn = database::open_connection(&db_path)
-        .map_err(|err| format!("Failed to open database connection: {}", err))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = database::open_connection(&db_path)
+            .map_err(|err| format!("Failed to open database connection: {}", err))?;
 
-    repository::update_library_availability(&conn, &library_id)?;
+        repository::update_library_availability(&conn, &library_id)?;
 
-    let root_path = repository::root_path_for_library(&conn, &library_id)?;
-    let scanned = match scanner::scan_library(&root_path) {
-        Ok(library) => library,
-        Err(_err) => {
-            repository::update_library_availability(&conn, &library_id)?;
-            return repository::load_library_by_id(&conn, &library_id);
-        }
-    };
+        let root_path = repository::root_path_for_library(&conn, &library_id)?;
+        let scanned = match scanner::scan_library(&root_path) {
+            Ok(library) => library,
+            Err(_err) => {
+                repository::update_library_availability(&conn, &library_id)?;
+                return repository::load_library_by_id(&conn, &library_id);
+            }
+        };
 
-    repository::save_scanned_library(&mut conn, &scanned)
+        repository::save_scanned_library(&mut conn, &scanned)
+    })
+    .await
+    .map_err(|err| format!("Rescan task failed: {}", err))?
 }
 
 #[tauri::command]
