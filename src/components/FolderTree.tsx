@@ -1,23 +1,35 @@
 import type { FolderNode } from "../types/library";
 
+type FolderProgress = {
+  played: number;
+  total: number;
+};
+
 type FolderTreeProps = {
   node: FolderNode;
   selectedFolderPath: string;
+  progressByPath: Map<string, FolderProgress>;
   onSelect: (folderPath: string) => void;
 };
 
-export function FolderTree({ node, selectedFolderPath, onSelect }: FolderTreeProps) {
+export function FolderTree({ node, selectedFolderPath, progressByPath, onSelect }: FolderTreeProps) {
   return (
     <ul className="folder-tree">
-      <FolderBranch node={node} selectedFolderPath={selectedFolderPath} onSelect={onSelect} />
+      <FolderBranch
+        node={node}
+        selectedFolderPath={selectedFolderPath}
+        progressByPath={progressByPath}
+        onSelect={onSelect}
+      />
     </ul>
   );
 }
 
 type FolderBranchProps = FolderTreeProps;
 
-function FolderBranch({ node, selectedFolderPath, onSelect }: FolderBranchProps) {
+function FolderBranch({ node, selectedFolderPath, progressByPath, onSelect }: FolderBranchProps) {
   const isSelected = node.fullPath === selectedFolderPath;
+  const progress = progressByPath.get(node.fullPath);
 
   return (
     <li>
@@ -26,7 +38,12 @@ function FolderBranch({ node, selectedFolderPath, onSelect }: FolderBranchProps)
         type="button"
         onClick={() => onSelect(node.fullPath)}
       >
-        {node.name}
+        <span>{node.name}</span>
+        {progress && progress.total > 0 && (
+          <small className="folder-progress">
+            {progress.played}/{progress.total}
+          </small>
+        )}
       </button>
       {node.children.length > 0 && (
         <ul>
@@ -35,6 +52,7 @@ function FolderBranch({ node, selectedFolderPath, onSelect }: FolderBranchProps)
               key={child.id}
               node={child}
               selectedFolderPath={selectedFolderPath}
+              progressByPath={progressByPath}
               onSelect={onSelect}
             />
           ))}

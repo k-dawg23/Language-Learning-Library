@@ -83,7 +83,8 @@ export function App() {
 
     return selectedFolder.lessonIds
       .map((id) => lessonById.get(id))
-      .filter((lesson): lesson is Lesson => Boolean(lesson));
+      .filter((lesson): lesson is Lesson => Boolean(lesson))
+      .sort((a, b) => a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: "base" }));
   }, [selectedFolder, lessonById]);
 
   const folderPdfs = useMemo(() => {
@@ -123,6 +124,14 @@ export function App() {
 
   const hasPreviousLesson = selectedLessonIndex > 0;
   const hasNextLesson = selectedLessonIndex >= 0 && selectedLessonIndex < folderLessons.length - 1;
+
+  const folderProgressByPath = useMemo(() => {
+    if (!selectedLibrary) {
+      return new Map<string, { played: number; total: number }>();
+    }
+
+    return buildFolderProgressMap(selectedLibrary.folderTree, lessonById);
+  }, [selectedLibrary, lessonById]);
 
   const audioSrc = useMemo(() => {
     if (!selectedLesson) {
@@ -221,10 +230,7 @@ export function App() {
 
       if (loaded.length > 0) {
         const first = loaded[0];
-        setSelectedLibraryId(first.id);
-        setSelectedFolderPath(first.folderTree.fullPath);
-        setSelectedLessonId(first.lastOpenedLessonId);
-        setPathInput(first.rootPath);
+        focusLibrarySelection(first);
         setStatus({
           tone: "neutral",
           message: `Loaded ${loaded.length} imported librar${loaded.length === 1 ? "y" : "ies"}.`
@@ -276,10 +282,7 @@ export function App() {
     try {
       const imported = await invoke<Library>("import_library", { rootPath });
       setLibraries((previous) => upsertLibrary(previous, imported));
-      setSelectedLibraryId(imported.id);
-      setSelectedFolderPath(imported.folderTree.fullPath);
-      setSelectedLessonId(imported.lastOpenedLessonId);
-      setPathInput(imported.rootPath);
+      focusLibrarySelection(imported);
       setStatus({
         tone: "neutral",
         message: `Imported ${imported.name}: ${imported.lessons.length} lessons, ${imported.pdfDocuments.length} PDFs.`
@@ -310,9 +313,7 @@ export function App() {
         libraryId: selectedLibrary.id
       });
       setLibraries((previous) => upsertLibrary(previous, rescanned));
-      setSelectedLibraryId(rescanned.id);
-      setSelectedFolderPath(rescanned.folderTree.fullPath);
-      setSelectedLessonId(rescanned.lastOpenedLessonId);
+      focusLibrarySelection(rescanned);
 
       const availabilityNote = rescanned.isAvailable ? "" : " (root folder currently missing)";
       setStatus({
@@ -330,10 +331,18 @@ export function App() {
   }
 
   function onSelectLibrary(library: Library) {
+    focusLibrarySelection(library);
+  }
+
+  function focusLibrarySelection(library: Library) {
+    const lessonToRestore = library.lastOpenedLessonId
+      ? library.lessons.find((lesson) => lesson.id === library.lastOpenedLessonId) ?? null
+      : null;
+
     setSelectedLibraryId(library.id);
-    setSelectedFolderPath(library.folderTree.fullPath);
-    setSelectedLessonId(library.lastOpenedLessonId);
     setPathInput(library.rootPath);
+    setSelectedLessonId(lessonToRestore?.id ?? null);
+    setSelectedFolderPath(lessonToRestore?.folderPath ?? library.folderTree.fullPath);
   }
 
   async function onSelectLesson(lessonId: string) {
@@ -452,6 +461,10 @@ export function App() {
     await persistPlaybackPosition(selectedLesson.id, currentTime);
     autoplayNextRef.current = shouldAutoplay;
     await onSelectLesson(folderLessons[nextIndex].id);
+  }
+
+  async function navigateAdjacentLesson(direction: -1 | 1) {
+    await playAdjacentLesson(direction, false);
   }
 
   function handleLoadedMetadata() {
@@ -596,6 +609,7 @@ export function App() {
             <FolderTree
               node={selectedLibrary.folderTree}
               selectedFolderPath={selectedFolderPath}
+              progressByPath={folderProgressByPath}
               onSelect={setSelectedFolderPath}
             />
           )}
@@ -625,6 +639,7 @@ export function App() {
                 <p className="library-path">Folder context: {selectedFolder.relativePath}</p>
 
                 <h3>Lessons In Folder</h3>
+                <p className="library-path">Ordered alphabetically for consistent previous/next navigation.</p>
                 {folderLessons.length === 0 && <p className="empty">No supported audio lessons in this folder.</p>}
                 {folderLessons.length > 0 && (
                   <ul className="item-list lesson-list">
@@ -656,6 +671,12 @@ export function App() {
                       {selectedLesson.played ? "Played" : "Unplayed"}
                     </p>
                     <div className="lesson-controls">
+                      <button type="button" onClick={() => void navigateAdjacentLesson(-1)} disabled={!hasPreviousLesson}>
+                        Previous Lesson
+                      </button>
+                      <button type="button" onClick={() => void navigateAdjacentLesson(1)} disabled={!hasNextLesson}>
+                        Next Lesson
+                      </button>
                       <button type="button" onClick={() => void toggleCurrentLessonPlayed()}>
                         Mark as {selectedLesson.played ? "Unplayed" : "Played"}
                       </button>
@@ -826,4 +847,36 @@ function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(rounded / 60);
   const seconds = rounded % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function buildFolderProgressMap(
+  node: FolderNode,
+  lessonById: Map<string, Lesson>
+): Map<string, { played: number; total: number }> {
+  const map = new Map<string, { played: number; total: number }>();
+  computeFolderProgress(node, lessonById, map);
+  return map;
+}
+
+function computeFolderProgress(
+  node: FolderNode,
+  lessonById: Map<string, Lesson>,
+  target: Map<string, { played: number; total: number }>
+): { played: number; total: number } {
+  const ownLessons = node.lessonIds
+    .map((id) => lessonById.get(id))
+    .filter((lesson): lesson is Lesson => Boolean(lesson));
+
+  let played = ownLessons.filter((lesson) => lesson.played).length;
+  let total = ownLessons.length;
+
+  for (const child of node.children) {
+    const childProgress = computeFolderProgress(child, lessonById, target);
+    played += childProgress.played;
+    total += childProgress.total;
+  }
+
+  const progress = { played, total };
+  target.set(node.fullPath, progress);
+  return progress;
 }
