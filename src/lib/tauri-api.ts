@@ -41,7 +41,17 @@ async function invokeCommand<T>(command: string, args?: Record<string, unknown>)
   }
 
   if (typeof invoke === "function") {
-    return invoke<T>(command, args);
+    try {
+      return await invoke<T>(command, args);
+    } catch (error) {
+      // Browser-only runs can expose a partial invoke shim that throws at runtime.
+      const message = String(error);
+      if (message.includes("reading 'invoke'") || message.includes("Tauri")) {
+        throw new Error("Tauri runtime is unavailable. Launch the app with `npm run tauri:dev`.");
+      }
+
+      throw error;
+    }
   }
 
   throw new Error("Tauri runtime is unavailable. Launch the app with `npm run tauri:dev`.");

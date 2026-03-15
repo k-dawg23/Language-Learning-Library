@@ -4,7 +4,7 @@ Offline-first desktop app for browsing language lessons (audio) and reference ma
 
 ## Current Status
 
-Implemented through Phases 1-9, plus post-phase usability fixes:
+Implemented through Phases 1-10:
 
 - Full offline Tauri desktop app with React + TypeScript UI
 - Recursive folder import/scan for audio + PDFs
@@ -14,6 +14,17 @@ Implemented through Phases 1-9, plus post-phase usability fixes:
 - In-app PDF viewing and fallback open
 - Draggable divider between lesson pane and PDF pane
 - Quit button for graceful app exit
+- Theme system with pastel presets and local persistence
+
+## Screenshots
+
+### Desktop
+
+![Language Learning Library desktop view](docs/screenshots/app-desktop.png)
+
+### Mobile/Narrow Layout
+
+![Language Learning Library mobile view](docs/screenshots/app-mobile.png)
 
 ## Tech Stack
 
