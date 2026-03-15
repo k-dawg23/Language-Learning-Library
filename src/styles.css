@@ -16,34 +16,136 @@ body,
   height: 100%;
 }
 
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
 .app-shell {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 340px 1fr;
   min-height: 100vh;
 }
 
 .sidebar {
   border-right: 1px solid #dbe4ef;
   background: #eef3f9;
-  padding: 1.25rem;
+  padding: 1rem;
 }
 
 .content {
-  padding: 1.5rem;
+  padding: 1rem 1.5rem;
 }
 
-h1,
-h2 {
-  margin-top: 0;
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.import-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.import-controls input {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.92rem;
+}
+
+.button-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.button-row button {
+  border: 1px solid #94a3b8;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.button-row button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.library-meta {
+  font-weight: 600;
+}
+
+.library-path {
+  color: #475569;
+  font-size: 0.84rem;
+  word-break: break-word;
 }
 
 .status {
-  margin-top: 1.5rem;
-  color: #475569;
-  font-size: 0.95rem;
+  color: #334155;
+  font-size: 0.9rem;
 }
 
-@media (max-width: 900px) {
+.status.error {
+  color: #b91c1c;
+}
+
+.folder-tree,
+.folder-tree ul {
+  margin: 0;
+  padding-left: 1rem;
+  list-style: none;
+}
+
+.folder-btn {
+  border: none;
+  background: transparent;
+  padding: 0.18rem 0;
+  cursor: pointer;
+  color: #0f172a;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.folder-btn.selected {
+  font-weight: 700;
+  color: #0c4a6e;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.4rem;
+}
+
+.item-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+}
+
+.item-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.item-list small {
+  color: #475569;
+}
+
+.empty {
+  color: #64748b;
+}
+
+@media (max-width: 1000px) {
   .app-shell {
     grid-template-columns: 1fr;
   }
@@ -51,5 +153,9 @@ h2 {
   .sidebar {
     border-right: none;
     border-bottom: 1px solid #dbe4ef;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
   }
 }
