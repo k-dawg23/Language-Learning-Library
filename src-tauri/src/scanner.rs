@@ -29,6 +29,9 @@ pub fn scan_library(root_path: &str) -> Result<Library, String> {
         id: format!("library:{}", root.to_string_lossy()),
         name: root_name,
         root_path: root.to_string_lossy().to_string(),
+        is_available: true,
+        missing_reason: None,
+        last_opened_lesson_id: None,
         folder_tree,
         lessons,
         pdf_documents,
@@ -101,6 +104,8 @@ fn scan_folder(
                 relative_path: relative_path(root, &path),
                 folder_path: current_path.clone(),
                 extension,
+                played: false,
+                playback_position_seconds: None,
             };
             lesson_ids.push(lesson.id.clone());
             lessons.push(lesson);

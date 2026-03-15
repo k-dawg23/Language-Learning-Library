@@ -13,26 +13,38 @@ Lightweight offline desktop app built with Tauri + React + TypeScript + SQLite.
 
 ### Phase 2
 
-- Import root folder by:
-  - folder picker
-  - manual path input
-- Recursive scanning of selected root folder and all subfolders
-- Supported audio lesson detection:
-  - `mp3`, `m4a`, `wav`, `aac`, `flac`, `ogg`
-- PDF detection and categorization:
-  - root-level PDFs as shared/reference documents for the whole library
-  - folder-level PDFs as local references for that folder
-- Preserved folder hierarchy in UI
-- Safe identity model using full-path-based IDs (handles duplicate filenames in different folders)
+- Import root folder by folder picker or manual path
+- Recursive scanning of all subfolders
+- Audio lesson detection: `mp3`, `m4a`, `wav`, `aac`, `flac`, `ogg`
+- PDF detection with scope:
+  - `root_shared` for root-level shared/reference docs
+  - `folder_local` for folder-specific reference docs
+- Preserved folder hierarchy with folder tree UI
 
-## Data models (Phase 2)
+### Phase 3
+
+- SQLite persistence for:
+  - imported libraries
+  - folder hierarchy
+  - lessons
+  - PDFs
+  - shared root PDF associations
+  - lesson played/unplayed state
+  - optional lesson playback position
+  - last opened lesson per library
+- App auto-loads imported libraries at startup (no re-import required)
+- Rescan support for imported libraries
+- Graceful handling of missing or moved root folders:
+  - library remains visible
+  - marked unavailable
+  - prior scan data still available in UI
+
+## Data models
 
 - `Library`
 - `FolderNode`
 - `Lesson`
-- `PdfDocument` with `scope`:
-  - `root_shared`
-  - `folder_local`
+- `PdfDocument`
 
 ## Project structure
 
@@ -40,9 +52,10 @@ Lightweight offline desktop app built with Tauri + React + TypeScript + SQLite.
 - `src/components/` - UI components
 - `src/types/` - frontend TypeScript models
 - `src-tauri/` - Rust/Tauri backend
-- `src-tauri/src/database.rs` - SQLite initialization
-- `src-tauri/src/models.rs` - shared scan models
+- `src-tauri/src/database.rs` - SQLite setup/schema
 - `src-tauri/src/scanner.rs` - recursive filesystem scan logic
+- `src-tauri/src/repository.rs` - SQLite persistence/load/rescan/state operations
+- `src-tauri/src/models.rs` - backend response models
 
 ## Prerequisites
 
@@ -79,4 +92,3 @@ npm run tauri:build
 - App is offline-first and local-only.
 - SQLite is embedded via `rusqlite` with the `bundled` feature.
 - Rust/Cargo is required to run Tauri commands.
-- Next phases add persistence of imported libraries and lesson/PDF state.
