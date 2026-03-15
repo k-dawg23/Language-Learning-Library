@@ -53,6 +53,22 @@ Lightweight offline desktop app built with Tauri + React + TypeScript + SQLite.
 - Root/shared PDFs remain visible while navigating folders/lessons
 - Clean empty states for libraries/folders with no PDFs
 
+### Phase 5
+
+- Audio playback in-app for selected lessons
+- Playback controls:
+  - play/pause
+  - seek bar
+  - current/duration time display
+  - previous/next lesson (within current folder list)
+  - optional auto-advance on lesson completion
+- Played state behavior:
+  - auto-mark as played near the end of playback or on completion
+  - manual mark/unmark toggle
+- Persistence updates:
+  - played/unplayed state saved to SQLite
+  - playback position saved periodically and on pause/end
+
 ## Data models
 
 - `Library`
