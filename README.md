@@ -1,5 +1,7 @@
 # Language Learning Library
 
+![Language Learning Library logo](docs/branding/language-learning-library-logo.png)
+
 Offline-first desktop app for browsing language lessons (audio) and reference materials (PDF) from local folders.
 
 ## Current Status
