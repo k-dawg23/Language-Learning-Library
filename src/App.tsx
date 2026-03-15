@@ -41,12 +41,15 @@ export function App() {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [autoAdvance, setAutoAdvance] = useState(false);
+  const [leftPaneWidth, setLeftPaneWidth] = useState<number | null>(null);
+  const [isResizingPanes, setIsResizingPanes] = useState(false);
   const [status, setStatus] = useState<StatusMessage>({
     tone: "neutral",
     message: "Loading imported libraries..."
   });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const contentGridRef = useRef<HTMLDivElement | null>(null);
   const pendingSeekRef = useRef<number | null>(null);
   const lastPersistedSecondRef = useRef(-1);
   const autoplayNextRef = useRef(false);
@@ -250,6 +253,44 @@ export function App() {
     lastPersistedSecondRef.current = Math.floor(selectedLesson.playbackPositionSeconds ?? 0);
   }, [selectedLessonId]);
 
+  useEffect(() => {
+    if (!isResizingPanes) {
+      return;
+    }
+
+    const onMouseMove = (event: MouseEvent) => {
+      const grid = contentGridRef.current;
+      if (!grid) {
+        return;
+      }
+
+      const rect = grid.getBoundingClientRect();
+      const dividerWidth = 12;
+      const minLeft = 320;
+      const minRight = 420;
+      const maxLeft = Math.max(minLeft + 1, rect.width - minRight - dividerWidth);
+      const rawLeft = event.clientX - rect.left;
+      const nextLeft = Math.max(minLeft, Math.min(maxLeft, rawLeft));
+      setLeftPaneWidth(nextLeft);
+    };
+
+    const onMouseUp = () => {
+      setIsResizingPanes(false);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+  }, [isResizingPanes]);
+
   async function loadLibrariesOnStartup() {
     try {
       const loaded = await loadImportedLibraries();
@@ -391,6 +432,34 @@ export function App() {
     }
 
     window.open(pdfSrc, "_blank", "noopener,noreferrer");
+  }
+
+  function startPaneResize() {
+    setIsResizingPanes(true);
+  }
+
+  function onDividerKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!contentGridRef.current) {
+      return;
+    }
+
+    const step = 24;
+    const dividerWidth = 12;
+    const minLeft = 320;
+    const minRight = 420;
+    const maxLeft = Math.max(minLeft + 1, contentGridRef.current.clientWidth - minRight - dividerWidth);
+    const current = leftPaneWidth ?? Math.round(contentGridRef.current.clientWidth * 0.34);
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setLeftPaneWidth(Math.max(minLeft, current - step));
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      setLeftPaneWidth(Math.min(maxLeft, current + step));
+    }
   }
 
   async function persistPlayed(lessonId: string, played: boolean) {
@@ -699,8 +768,16 @@ export function App() {
           )}
 
           {selectedLibrary && selectedFolder && (
-            <div className="content-grid">
-              <section>
+            <div
+              ref={contentGridRef}
+              className={isResizingPanes ? "content-grid resizing" : "content-grid"}
+              style={
+                leftPaneWidth !== null
+                  ? { gridTemplateColumns: `${leftPaneWidth}px 12px minmax(420px, 1fr)` }
+                  : undefined
+              }
+            >
+              <section className="lessons-pane">
                 <h3>Current Folder</h3>
                 <p className="library-path">{selectedFolder.fullPath}</p>
                 <p className="library-path">Folder context: {selectedFolder.relativePath}</p>
@@ -812,7 +889,17 @@ export function App() {
                 )}
               </section>
 
-              <section>
+              <div
+                className="pane-divider"
+                role="separator"
+                aria-label="Resize lesson and PDF panes"
+                aria-orientation="vertical"
+                tabIndex={0}
+                onMouseDown={startPaneResize}
+                onKeyDown={onDividerKeyDown}
+              />
+
+              <section className="pdf-pane">
                 <h3>Reference Documents</h3>
                 <p className="library-path">
                   Shared library PDFs stay available while you navigate folders and lessons.

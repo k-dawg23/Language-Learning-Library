@@ -162,8 +162,33 @@ p {
 
 .content-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(320px, 1fr) 12px minmax(520px, 2fr);
   gap: 1.4rem;
+}
+
+.lessons-pane {
+  min-width: 0;
+}
+
+.pdf-pane {
+  min-width: 0;
+}
+
+.pane-divider {
+  width: 12px;
+  border-radius: 999px;
+  cursor: col-resize;
+  background: linear-gradient(to right, #dbe4ef 0%, #b9c9dd 50%, #dbe4ef 100%);
+  align-self: stretch;
+  outline: none;
+}
+
+.pane-divider:focus-visible {
+  box-shadow: 0 0 0 2px #0c4a6e;
+}
+
+.content-grid.resizing .pane-divider {
+  background: linear-gradient(to right, #bfd4ea 0%, #7ca8cf 50%, #bfd4ea 100%);
 }
 
 .content-grid section {
@@ -332,7 +357,7 @@ p {
 
 .pdf-frame {
   width: 100%;
-  min-height: 420px;
+  min-height: 70vh;
   border: 1px solid #dbe4ef;
   border-radius: 6px;
   background: #ffffff;
@@ -354,5 +379,9 @@ p {
 
   .content-grid {
     grid-template-columns: 1fr;
+  }
+
+  .pane-divider {
+    display: none;
   }
 }
