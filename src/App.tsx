@@ -12,7 +12,7 @@ import {
 } from "./lib/library-utils";
 import {
   importLibrary as importLibraryApi,
-  loadAudioDataUrl,
+  loadAudioBlobPayload,
   loadImportedLibraries,
   rescanLibrary,
   setLastOpenedLesson,
@@ -52,6 +52,18 @@ function resolveInitialTheme(): ThemeId {
   return DEFAULT_THEME;
 }
 
+function linuxCodecHint(): string {
+  if (typeof navigator === "undefined") {
+    return "";
+  }
+
+  if (!navigator.userAgent.includes("Linux")) {
+    return "";
+  }
+
+  return " On Linux, install: gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav.";
+}
+
 export function App() {
   const [pathInput, setPathInput] = useState("");
   const [libraries, setLibraries] = useState<Library[]>([]);
@@ -60,8 +72,8 @@ export function App() {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [selectedPdfId, setSelectedPdfId] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
-  const [audioSourceMode, setAudioSourceMode] = useState<"asset" | "file" | "data">("asset");
-  const [audioDataUrl, setAudioDataUrl] = useState<string | null>(null);
+  const [audioSourceMode, setAudioSourceMode] = useState<"asset" | "file" | "blob">("asset");
+  const [audioObjectUrl, setAudioObjectUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -184,8 +196,8 @@ export function App() {
       return "";
     }
 
-    if (audioSourceMode === "data") {
-      return audioDataUrl ?? "";
+    if (audioSourceMode === "blob") {
+      return audioObjectUrl ?? "";
     }
 
     if (audioSourceMode === "file") {
@@ -193,7 +205,7 @@ export function App() {
     }
 
     return convertFileSrc(selectedLesson.fullPath);
-  }, [selectedLesson, audioDataUrl, audioSourceMode]);
+  }, [selectedLesson, audioObjectUrl, audioSourceMode]);
 
   const pdfSrc = useMemo(() => {
     if (!selectedPdf) {
@@ -279,10 +291,21 @@ export function App() {
     setCurrentTime(0);
     setIsPlaying(false);
     setAudioSourceMode("asset");
-    setAudioDataUrl(null);
+    if (audioObjectUrl) {
+      URL.revokeObjectURL(audioObjectUrl);
+    }
+    setAudioObjectUrl(null);
     pendingSeekRef.current = selectedLesson.playbackPositionSeconds;
     lastPersistedSecondRef.current = Math.floor(selectedLesson.playbackPositionSeconds ?? 0);
   }, [selectedLessonId]);
+
+  useEffect(() => {
+    return () => {
+      if (audioObjectUrl) {
+        URL.revokeObjectURL(audioObjectUrl);
+      }
+    };
+  }, [audioObjectUrl]);
 
   useEffect(() => {
     if (!isResizingPanes) {
@@ -569,13 +592,13 @@ export function App() {
         }
 
         if (audioSourceMode === "file") {
-          await switchToDataAudioFallback(true);
+          await switchToBlobAudioFallback(true);
           return;
         }
 
         setStatus({
           tone: "error",
-          message: `Could not play ${selectedLesson.fileName}. Check file permissions and codec support.`
+          message: `Could not play ${selectedLesson.fileName}. Check file permissions and codec support.${linuxCodecHint()}`
         });
       });
     } else {
@@ -629,15 +652,28 @@ export function App() {
     await playAdjacentLesson(direction, false);
   }
 
-  async function switchToDataAudioFallback(autoplay: boolean) {
+  async function switchToBlobAudioFallback(autoplay: boolean) {
     if (!selectedLesson) {
       return;
     }
 
     try {
-      const dataUrl = await loadAudioDataUrl(selectedLesson.fullPath);
-      setAudioDataUrl(dataUrl);
-      setAudioSourceMode("data");
+      const payload = await loadAudioBlobPayload(selectedLesson.fullPath);
+      const decoded = atob(payload.base64Data);
+      const bytes = new Uint8Array(decoded.length);
+      for (let index = 0; index < decoded.length; index += 1) {
+        bytes[index] = decoded.charCodeAt(index);
+      }
+
+      const blob = new Blob([bytes], { type: payload.mimeType || "application/octet-stream" });
+      const nextObjectUrl = URL.createObjectURL(blob);
+
+      if (audioObjectUrl) {
+        URL.revokeObjectURL(audioObjectUrl);
+      }
+
+      setAudioObjectUrl(nextObjectUrl);
+      setAudioSourceMode("blob");
 
       if (autoplay) {
         window.setTimeout(() => {
@@ -649,15 +685,15 @@ export function App() {
           void retryAudio.play().catch(() => {
             setStatus({
               tone: "error",
-              message: `Could not play ${selectedLesson.fileName}. Check file permissions and codec support.`
+              message: `Could not play ${selectedLesson.fileName}. Check file permissions and codec support.${linuxCodecHint()}`
             });
           });
         }, 50);
       }
-    } catch {
+    } catch (error) {
       setStatus({
         tone: "error",
-        message: `Could not play ${selectedLesson.fileName}. Check file permissions and codec support.`
+        message: `Could not play ${selectedLesson.fileName}. Check file permissions and codec support.${linuxCodecHint()} (${String(error)})`
       });
     }
   }
@@ -751,7 +787,7 @@ export function App() {
     }
 
     if (audioSourceMode === "file" && selectedLesson) {
-      void switchToDataAudioFallback(false);
+      void switchToBlobAudioFallback(false);
       return;
     }
 

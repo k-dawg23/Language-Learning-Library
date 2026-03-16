@@ -189,12 +189,28 @@ Desktop app bundle:
 npm run tauri:build
 ```
 
+Linux package outputs (no spaces in filenames):
+
+- `src-tauri/target/release/bundle/deb/language-learning-library_0.1.0_amd64.deb`
+- `src-tauri/target/release/bundle/rpm/language-learning-library-0.1.0-1.x86_64.rpm`
+
+Install on Debian/Ubuntu:
+
+```bash
+sudo apt install "./src-tauri/target/release/bundle/deb/language-learning-library_0.1.0_amd64.deb"
+```
+
 ## Troubleshooting
 
 - `cargo metadata ... No such file or directory (os error 2)`:
   - `cargo` is not installed or not on `PATH`; install Rust and restart shell.
 - `javascriptcoregtk-4.1.pc not found` on Linux:
   - Install Linux WebKitGTK dependencies (`libwebkit2gtk-4.1-dev` / equivalent).
+- `.deb` install reports unsatisfied GTK dependencies on Ubuntu 24+:
+  - Ensure `libgtk-3-0t64` and `libwebkit2gtk-4.1-0` are installed.
+  - Example: `sudo apt install libgtk-3-0t64 libwebkit2gtk-4.1-0`
+- AppImage bundles are currently disabled by default in this project:
+  - Linux outputs focus on `.deb` and `.rpm`, which have been validated here.
 - `Failed to load libraries: ... invoke`:
   - Launch with `npm run tauri:dev` (not plain `npm run dev`) so Tauri backend is available.
 - Quit button permission errors:

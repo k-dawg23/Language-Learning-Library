@@ -2,6 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Library } from "../types/library";
 
 type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
+export type AudioBlobPayload = {
+  mimeType: string;
+  base64Data: string;
+};
 
 declare global {
   interface Window {
@@ -97,4 +101,8 @@ export async function setLessonPlaybackPosition(
 
 export async function loadAudioDataUrl(filePath: string): Promise<string> {
   return invokeCommand<string>("load_audio_data_url", { filePath });
+}
+
+export async function loadAudioBlobPayload(filePath: string): Promise<AudioBlobPayload> {
+  return invokeCommand<AudioBlobPayload>("load_audio_blob_payload", { filePath });
 }
