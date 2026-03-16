@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Language Learning Library",
+  "productName": "language-learning-library",
   "version": "0.1.0",
   "identifier": "com.kdawg.languagelearninglibrary",
   "build": {
@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; media-src 'self' asset: http://asset.localhost file:; img-src 'self' asset: http://asset.localhost; frame-src 'self' asset: http://asset.localhost file:;",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; media-src 'self' asset: http://asset.localhost file: blob: data:; img-src 'self' asset: http://asset.localhost blob: data:; frame-src 'self' asset: http://asset.localhost file: blob: data:;",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]
@@ -29,7 +29,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "deb",
+      "rpm"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,6 +40,22 @@
       "icons/512x512.png",
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0 | libgtk-3-0t64",
+          "gstreamer1.0-plugins-base",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-plugins-bad",
+          "gstreamer1.0-plugins-ugly",
+          "gstreamer1.0-libav"
+        ]
+      }
+    }
   }
 }
