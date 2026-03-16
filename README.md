@@ -189,6 +189,17 @@ Desktop app bundle:
 npm run tauri:build
 ```
 
+Windows installer bundles (run on Windows host/VM):
+
+```powershell
+npm run tauri:build -- --bundles msi,nsis
+```
+
+Windows installer outputs:
+
+- `src-tauri/target/release/bundle/msi/language-learning-library_0.1.0_x64_en-US.msi`
+- `src-tauri/target/release/bundle/nsis/language-learning-library_0.1.0_x64-setup.exe`
+
 Linux package outputs (no spaces in filenames):
 
 - `src-tauri/target/release/bundle/deb/language-learning-library_0.1.0_amd64.deb`
@@ -211,6 +222,9 @@ sudo apt install "./src-tauri/target/release/bundle/deb/language-learning-librar
   - Example: `sudo apt install libgtk-3-0t64 libwebkit2gtk-4.1-0`
 - AppImage bundles are currently disabled by default in this project:
   - Linux outputs focus on `.deb` and `.rpm`, which have been validated here.
+- Windows installers not generated when running plain `npm run tauri:build`:
+  - This repo currently defaults bundle targets to Linux (`deb`, `rpm`).
+  - On Windows, run: `npm run tauri:build -- --bundles msi,nsis`
 - `Failed to load libraries: ... invoke`:
   - Launch with `npm run tauri:dev` (not plain `npm run dev`) so Tauri backend is available.
 - Quit button permission errors:
