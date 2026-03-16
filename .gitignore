@@ -6,3 +6,6 @@ dist
 *.log
 src-tauri/target
 src-tauri/.cargo
+useful
+windows-vm/storage
+windows-vm/file1
