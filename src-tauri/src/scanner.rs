@@ -13,6 +13,7 @@ pub fn scan_library(root_path: &str) -> Result<Library, String> {
         .and_then(OsStr::to_str)
         .map(|v| v.to_string())
         .unwrap_or_else(|| root.to_string_lossy().to_string());
+    let library_id = library_id_for_root(&root);
 
     let mut lessons: Vec<Lesson> = Vec::new();
     let mut pdf_documents: Vec<PdfDocument> = Vec::new();
@@ -21,6 +22,7 @@ pub fn scan_library(root_path: &str) -> Result<Library, String> {
     let folder_tree = scan_folder(
         &root,
         &root,
+        &library_id,
         &mut lessons,
         &mut pdf_documents,
         &mut shared_pdf_ids,
@@ -28,7 +30,7 @@ pub fn scan_library(root_path: &str) -> Result<Library, String> {
     )?;
 
     Ok(Library {
-        id: format!("library:{}", root.to_string_lossy()),
+        id: library_id,
         name: root_name,
         root_path: root.to_string_lossy().to_string(),
         is_available: true,
@@ -48,7 +50,10 @@ fn normalize_root_path(root_path: &str) -> Result<PathBuf, String> {
     }
 
     if !input.is_dir() {
-        return Err(format!("Path is not a directory: {}", input.to_string_lossy()));
+        return Err(format!(
+            "Path is not a directory: {}",
+            input.to_string_lossy()
+        ));
     }
 
     input
@@ -59,6 +64,7 @@ fn normalize_root_path(root_path: &str) -> Result<PathBuf, String> {
 fn scan_folder(
     current: &Path,
     root: &Path,
+    library_id: &str,
     lessons: &mut Vec<Lesson>,
     pdf_documents: &mut Vec<PdfDocument>,
     shared_pdf_ids: &mut Vec<String>,
@@ -74,7 +80,7 @@ fn scan_folder(
 
     if depth > MAX_SCAN_DEPTH {
         return Ok(FolderNode {
-            id: format!("folder:{}", current_path),
+            id: folder_id_for_path(library_id, current),
             name,
             full_path: current_path,
             relative_path: current_relative_path,
@@ -88,12 +94,15 @@ fn scan_folder(
         Ok(dir) => dir,
         Err(err) => {
             if current == root {
-                return Err(format!("Failed to read directory {}: {}", current_path, err));
+                return Err(format!(
+                    "Failed to read directory {}: {}",
+                    current_path, err
+                ));
             }
 
             // Keep scanning even if one nested directory is unavailable.
             return Ok(FolderNode {
-                id: format!("folder:{}", current_path),
+                id: folder_id_for_path(library_id, current),
                 name,
                 full_path: current_path,
                 relative_path: current_relative_path,
@@ -104,9 +113,7 @@ fn scan_folder(
         }
     };
 
-    let mut entries: Vec<fs::DirEntry> = read_dir
-        .filter_map(|entry| entry.ok())
-        .collect();
+    let mut entries: Vec<fs::DirEntry> = read_dir.filter_map(|entry| entry.ok()).collect();
 
     entries.sort_by_key(|entry| entry.file_name());
 
@@ -126,6 +133,7 @@ fn scan_folder(
             if let Ok(node) = scan_folder(
                 &path,
                 root,
+                library_id,
                 lessons,
                 pdf_documents,
                 shared_pdf_ids,
@@ -140,15 +148,12 @@ fn scan_folder(
             continue;
         }
 
-        let extension = path
-            .extension()
-            .and_then(OsStr::to_str)
-            .unwrap_or_default();
+        let extension = path.extension().and_then(OsStr::to_str).unwrap_or_default();
 
         if is_supported_audio_extension(extension) {
             let full = path.to_string_lossy().to_string();
             let lesson = Lesson {
-                id: format!("lesson:{}", full),
+                id: lesson_id_for_path(library_id, &path),
                 file_name: file_name(&path),
                 full_path: full.clone(),
                 relative_path: relative_path(root, &path),
@@ -166,7 +171,7 @@ fn scan_folder(
             let full = path.to_string_lossy().to_string();
             let is_root = current == root;
             let pdf = PdfDocument {
-                id: format!("pdf:{}", full),
+                id: pdf_id_for_path(library_id, &path),
                 file_name: file_name(&path),
                 full_path: full.clone(),
                 relative_path: relative_path(root, &path),
@@ -188,7 +193,7 @@ fn scan_folder(
     }
 
     Ok(FolderNode {
-        id: format!("folder:{}", current_path),
+        id: folder_id_for_path(library_id, current),
         name,
         full_path: current_path,
         relative_path: current_relative_path,
@@ -240,4 +245,20 @@ fn file_name(path: &Path) -> String {
         .and_then(OsStr::to_str)
         .map(|name| name.to_string())
         .unwrap_or_else(|| path.to_string_lossy().to_string())
+}
+
+fn library_id_for_root(root: &Path) -> String {
+    format!("library:{}", root.to_string_lossy())
+}
+
+fn folder_id_for_path(library_id: &str, path: &Path) -> String {
+    format!("folder:{}:{}", library_id, path.to_string_lossy())
+}
+
+fn lesson_id_for_path(library_id: &str, path: &Path) -> String {
+    format!("lesson:{}:{}", library_id, path.to_string_lossy())
+}
+
+fn pdf_id_for_path(library_id: &str, path: &Path) -> String {
+    format!("pdf:{}:{}", library_id, path.to_string_lossy())
 }

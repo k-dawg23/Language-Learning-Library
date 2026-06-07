@@ -8,9 +8,11 @@ import {
   buildFolderProgressMap,
   findFolderNode,
   formatTime,
+  removeLibraryById,
   upsertLibrary
 } from "./lib/library-utils";
 import {
+  deleteLibrary as deleteLibraryApi,
   importLibrary as importLibraryApi,
   loadAudioBlobPayload,
   loadImportedLibraries,
@@ -465,6 +467,14 @@ export function App() {
     setSelectedFolderPath(lessonToRestore?.folderPath ?? library.folderTree.fullPath);
   }
 
+  function clearLibrarySelection() {
+    setSelectedLibraryId(null);
+    setPathInput("");
+    setSelectedFolderPath("");
+    setSelectedLessonId(null);
+    setSelectedPdfId(null);
+  }
+
   async function onSelectLesson(lessonId: string) {
     if (!selectedLibrary) {
       return;
@@ -524,6 +534,47 @@ export function App() {
     if (event.key === "ArrowRight") {
       event.preventDefault();
       setLeftPaneWidth(Math.min(maxLeft, current + step));
+    }
+  }
+
+  async function removeLibrary(library: Library) {
+    const confirmed = window.confirm(
+      `Remove ${library.name} from the app?\n\nThis will remove its imported folders, lessons, PDFs, and saved playback state from the library database. The files on disk will not be deleted.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setIsWorking(true);
+    setStatus({
+      tone: "neutral",
+      message: `Removing ${library.name} ...`
+    });
+
+    try {
+      await deleteLibraryApi(library.id);
+      const remainingLibraries = removeLibraryById(libraries, library.id);
+      setLibraries(remainingLibraries);
+
+      if (selectedLibraryId === library.id) {
+        if (remainingLibraries.length > 0) {
+          focusLibrarySelection(remainingLibraries[0]);
+        } else {
+          clearLibrarySelection();
+        }
+      }
+
+      setStatus({
+        tone: "neutral",
+        message: `Removed ${library.name} from the app.`
+      });
+    } catch (error) {
+      setStatus({
+        tone: "error",
+        message: `Remove failed: ${String(error)}`
+      });
+    } finally {
+      setIsWorking(false);
     }
   }
 
@@ -845,16 +896,25 @@ export function App() {
 
           <div className="library-list">
             {libraries.map((library) => (
-              <button
-                key={library.id}
-                type="button"
-                className={library.id === selectedLibraryId ? "library-btn selected" : "library-btn"}
-                onClick={() => onSelectLibrary(library)}
-              >
-                <span>{library.name}</span>
-                <small>{library.rootPath}</small>
-                {!library.isAvailable && <small className="missing">Missing</small>}
-              </button>
+              <div key={library.id} className="library-row">
+                <button
+                  type="button"
+                  className={library.id === selectedLibraryId ? "library-btn selected" : "library-btn"}
+                  onClick={() => onSelectLibrary(library)}
+                >
+                  <span>{library.name}</span>
+                  <small>{library.rootPath}</small>
+                  {!library.isAvailable && <small className="missing">Missing</small>}
+                </button>
+                <button
+                  type="button"
+                  className="library-remove-btn danger-btn"
+                  onClick={() => void removeLibrary(library)}
+                  disabled={isWorking}
+                >
+                  Remove
+                </button>
+              </div>
             ))}
             {libraries.length === 0 && <p className="empty">No imported libraries.</p>}
           </div>

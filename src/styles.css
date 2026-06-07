@@ -241,6 +241,13 @@ p {
   gap: 0.45rem;
 }
 
+.library-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
 .library-btn {
   border: 1px solid var(--border-default);
   background: var(--surface-card);
@@ -256,6 +263,16 @@ p {
 .library-btn.selected {
   border-color: var(--accent);
   background: var(--surface-selected);
+}
+
+.library-remove-btn {
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 6px;
+  padding: 0.45rem 0.7rem;
+  background: var(--surface-card);
+  cursor: pointer;
+  align-self: center;
 }
 
 .library-btn small {

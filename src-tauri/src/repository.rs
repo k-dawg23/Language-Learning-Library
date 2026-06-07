@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn save_scanned_library(conn: &mut Connection, scanned: &Library) -> Result<Library, String> {
     let lesson_state = existing_lesson_state(conn, &scanned.id)?;
-    let last_opened = load_last_opened_lesson(conn, &scanned.id)?;
+    let last_opened_path = load_last_opened_lesson_path(conn, &scanned.id)?;
     let timestamp = unix_timestamp_now();
 
     let tx = conn
@@ -29,22 +29,25 @@ pub fn save_scanned_library(conn: &mut Connection, scanned: &Library) -> Result<
     .map_err(|err| format!("Failed to upsert library: {}", err))?;
 
     tx.execute(
-        "INSERT OR IGNORE INTO library_state (library_id, last_opened_lesson_id) VALUES (?1, ?2)",
-        params![&scanned.id, last_opened],
-    )
-    .map_err(|err| format!("Failed to ensure library state: {}", err))?;
-
-    tx.execute(
         "DELETE FROM library_shared_pdfs WHERE library_id = ?1",
         params![&scanned.id],
     )
     .map_err(|err| format!("Failed to clear shared PDF links: {}", err))?;
-    tx.execute("DELETE FROM pdf_documents WHERE library_id = ?1", params![&scanned.id])
-        .map_err(|err| format!("Failed to clear PDFs: {}", err))?;
-    tx.execute("DELETE FROM lessons WHERE library_id = ?1", params![&scanned.id])
-        .map_err(|err| format!("Failed to clear lessons: {}", err))?;
-    tx.execute("DELETE FROM folders WHERE library_id = ?1", params![&scanned.id])
-        .map_err(|err| format!("Failed to clear folders: {}", err))?;
+    tx.execute(
+        "DELETE FROM pdf_documents WHERE library_id = ?1",
+        params![&scanned.id],
+    )
+    .map_err(|err| format!("Failed to clear PDFs: {}", err))?;
+    tx.execute(
+        "DELETE FROM lessons WHERE library_id = ?1",
+        params![&scanned.id],
+    )
+    .map_err(|err| format!("Failed to clear lessons: {}", err))?;
+    tx.execute(
+        "DELETE FROM folders WHERE library_id = ?1",
+        params![&scanned.id],
+    )
+    .map_err(|err| format!("Failed to clear folders: {}", err))?;
 
     let mut folder_rows: Vec<(String, Option<String>, String, String, String)> = Vec::new();
     flatten_folders(&scanned.folder_tree, None, &mut folder_rows);
@@ -96,6 +99,25 @@ pub fn save_scanned_library(conn: &mut Connection, scanned: &Library) -> Result<
         .map_err(|err| format!("Failed to insert lesson {}: {}", lesson.full_path, err))?;
     }
 
+    let restored_last_opened_id = last_opened_path.as_ref().and_then(|last_opened_path| {
+        scanned
+            .lessons
+            .iter()
+            .find(|lesson| lesson.full_path == *last_opened_path)
+            .map(|lesson| lesson.id.clone())
+    });
+
+    tx.execute(
+        "
+        INSERT INTO library_state (library_id, last_opened_lesson_id)
+        VALUES (?1, ?2)
+        ON CONFLICT(library_id) DO UPDATE SET
+          last_opened_lesson_id = excluded.last_opened_lesson_id
+        ",
+        params![&scanned.id, restored_last_opened_id],
+    )
+    .map_err(|err| format!("Failed to update library state: {}", err))?;
+
     for pdf in &scanned.pdf_documents {
         let folder_id = folder_id_by_path
             .get(&pdf.folder_path)
@@ -136,6 +158,25 @@ pub fn save_scanned_library(conn: &mut Connection, scanned: &Library) -> Result<
         .map_err(|err| format!("Failed to commit library transaction: {}", err))?;
 
     load_library_by_id(conn, &scanned.id)
+}
+
+pub fn delete_library(conn: &mut Connection, library_id: &str) -> Result<(), String> {
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("Failed to open delete transaction: {}", err))?;
+
+    let deleted = tx
+        .execute("DELETE FROM libraries WHERE id = ?1", params![library_id])
+        .map_err(|err| format!("Failed to delete library: {}", err))?;
+
+    if deleted == 0 {
+        return Err(format!("Library not found: {}", library_id));
+    }
+
+    tx.commit()
+        .map_err(|err| format!("Failed to commit library delete: {}", err))?;
+
+    Ok(())
 }
 
 pub fn load_all_libraries(conn: &mut Connection) -> Result<Vec<Library>, String> {
@@ -216,7 +257,10 @@ pub fn load_library_by_id(conn: &Connection, library_id: &str) -> Result<Library
         .map_err(|err| format!("Failed to collect folders: {}", err))?;
 
     if folder_rows.is_empty() {
-        return Err(format!("No folder structure stored for library {}", library_id));
+        return Err(format!(
+            "No folder structure stored for library {}",
+            library_id
+        ));
     }
 
     let mut lesson_stmt = conn
@@ -336,7 +380,8 @@ pub fn load_library_by_id(conn: &Connection, library_id: &str) -> Result<Library
         folder_rows_by_id.insert(row.id.clone(), row);
     }
 
-    let root_folder_id = root_id.ok_or_else(|| format!("Missing root folder for library {}", library_id))?;
+    let root_folder_id =
+        root_id.ok_or_else(|| format!("Missing root folder for library {}", library_id))?;
 
     let folder_tree = build_folder_tree(
         &root_folder_id,
@@ -539,15 +584,25 @@ fn existing_lesson_state(
         .collect())
 }
 
-fn load_last_opened_lesson(conn: &Connection, library_id: &str) -> Result<Option<String>, String> {
+fn load_last_opened_lesson_path(
+    conn: &Connection,
+    library_id: &str,
+) -> Result<Option<String>, String> {
     let mut stmt = conn
-        .prepare("SELECT last_opened_lesson_id FROM library_state WHERE library_id = ?1")
-        .map_err(|err| format!("Failed to prepare last-opened query: {}", err))?;
+        .prepare(
+            "
+            SELECT lessons.full_path
+            FROM library_state
+            LEFT JOIN lessons ON lessons.id = library_state.last_opened_lesson_id
+            WHERE library_state.library_id = ?1
+            ",
+        )
+        .map_err(|err| format!("Failed to prepare last-opened path query: {}", err))?;
 
     let value = stmt
         .query_row(params![library_id], |row| row.get::<_, Option<String>>(0))
         .optional()
-        .map_err(|err| format!("Failed to load last-opened lesson: {}", err))?;
+        .map_err(|err| format!("Failed to load last-opened lesson path: {}", err))?;
 
     Ok(value.flatten())
 }
@@ -568,7 +623,11 @@ fn string_to_scope(value: String) -> PdfScope {
 }
 
 fn bool_to_int(value: bool) -> i64 {
-    if value { 1 } else { 0 }
+    if value {
+        1
+    } else {
+        0
+    }
 }
 
 fn unix_timestamp_now() -> i64 {

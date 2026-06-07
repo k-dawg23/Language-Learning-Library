@@ -31,6 +31,10 @@ export function upsertLibrary(libraries: Library[], next: Library): Library[] {
   return updated;
 }
 
+export function removeLibraryById(libraries: Library[], libraryId: string): Library[] {
+  return libraries.filter((library) => library.id !== libraryId);
+}
+
 export function formatTime(totalSeconds: number): string {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
     return "00:00";

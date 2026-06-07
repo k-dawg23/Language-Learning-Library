@@ -50,7 +50,9 @@ async fn import_library(
 }
 
 #[tauri::command]
-async fn load_imported_libraries(state: tauri::State<'_, AppState>) -> Result<Vec<Library>, String> {
+async fn load_imported_libraries(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<Library>, String> {
     let db_path = state
         .db_path
         .clone()
@@ -95,6 +97,26 @@ async fn rescan_library(
     })
     .await
     .map_err(|err| format!("Rescan task failed: {}", err))?
+}
+
+#[tauri::command]
+async fn delete_library(
+    state: tauri::State<'_, AppState>,
+    library_id: String,
+) -> Result<(), String> {
+    let db_path = state
+        .db_path
+        .clone()
+        .ok_or_else(|| "Database is not initialized".to_string())?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = database::open_connection(&db_path)
+            .map_err(|err| format!("Failed to open database connection: {}", err))?;
+
+        repository::delete_library(&mut conn, &library_id)
+    })
+    .await
+    .map_err(|err| format!("Delete task failed: {}", err))?
 }
 
 #[tauri::command]
@@ -283,6 +305,7 @@ fn main() {
             import_library,
             load_imported_libraries,
             rescan_library,
+            delete_library,
             set_lesson_played,
             set_lesson_playback_position,
             set_last_opened_lesson,

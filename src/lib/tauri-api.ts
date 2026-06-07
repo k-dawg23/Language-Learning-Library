@@ -81,6 +81,10 @@ export async function rescanLibrary(libraryId: string): Promise<Library> {
   return invokeCommand<Library>("rescan_library", { libraryId });
 }
 
+export async function deleteLibrary(libraryId: string): Promise<void> {
+  return invokeCommand("delete_library", { libraryId });
+}
+
 export async function setLastOpenedLesson(libraryId: string, lessonId: string | null): Promise<void> {
   return invokeCommand("set_last_opened_lesson", { libraryId, lessonId });
 }
